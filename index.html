@@ -1381,8 +1381,6 @@ label.upload-box {
       </section>
 
       <section class="filter-area">
-        <select id="provinceSelect"><option value="">全部省份</option></select>
-        <select id="citySelect"><option value="">全部城市</option></select>
         <select id="tagSelect"><option value="">全部风格</option></select>
         <button id="favFilter" class="chip-btn" type="button">♡ 只看收藏</button>
         <button id="resetFilter" class="link-btn" type="button">重置</button>
@@ -1417,8 +1415,8 @@ label.upload-box {
 
     <footer class="page-footer">
       <div class="container">
-        机位数据保存在本机浏览器 · 导航会跳转到百度 / 高德 / Google 地图<br>
-        坐标与描述多为示例内容，实拍前请核对现场情况
+        机位数据存在云端 · 点开就看，导航直接跳百度 / 高德 / Google 地图<br>
+        地址由发布者填写，实拍前请自己再核对一次现场
       </div>
     </footer>
   </section>
@@ -1536,24 +1534,13 @@ label.upload-box {
     <main class="container">
       <form id="spotForm" class="form-card" novalidate>
         <div class="field">
-          <label for="fTitle">机位名称<span class="hint">必填，例如「洱海环湖栈道」</span></label>
-          <input id="fTitle" type="text" placeholder="给这个机位起个名字" maxlength="30" required>
-        </div>
-
-        <div class="form-row">
-          <div class="field">
-            <label for="fProvince">省份<span class="hint">必填</span></label>
-            <select id="fProvince" required><option value="">请选择省份</option></select>
-          </div>
-          <div class="field">
-            <label for="fCity">城市<span class="hint">必填</span></label>
-            <select id="fCity" required><option value="">请先选省份</option></select>
-          </div>
+          <label for="fTitle">机位名称<span class="hint">只有这一项必填，其余都可以空着</span></label>
+          <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：洱海栈道" maxlength="30" required>
         </div>
 
         <div class="field">
-          <label for="fAddress">具体地点 / 地址<span class="hint">必填，写成地图上能搜到的名字</span></label>
-          <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 洱海生态廊道才村码头" maxlength="60" required>
+          <label for="fAddress">地点 / 地址<span class="hint">选填，填个地名就行，不用管省市</span></label>
+          <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 洱海才村码头" maxlength="60">
           <div class="mini-tools">
             <button id="pickToggle" class="chip-btn" type="button">在地图上标个点（可选）</button>
             <button id="btnGeo" class="chip-btn" type="button">用当前位置</button>
@@ -1589,7 +1576,7 @@ label.upload-box {
         </div>
 
         <div class="field">
-          <label for="fDesc">机位描述<span class="hint">必填，写清构图、光线、怎么站</span></label>
+          <label for="fDesc">机位描述<span class="hint">选填</span></label>
           <textarea id="fDesc" rows="6" placeholder="例：沿环湖栈道往北走约 300 米，护栏缺口处可以下到浅滩；用 35mm 低机位，把远山压在画面上三分之一。"></textarea>
         </div>
 
@@ -1610,7 +1597,7 @@ label.upload-box {
         </div>
 
         <p class="form-tip">
-          发布后数据只保存在当前浏览器（localStorage）；换设备或清除浏览器数据会丢失。
+          发布后会同步到云端，手机、电脑都能看到。只有「名称」必填，其他想填就填。
         </p>
 
         <div class="form-actions">
@@ -1879,8 +1866,10 @@ function chipsHtml(tags, max) {
 }
 
 function areaText(spot) {
+  const addr = String(spot.address || "").trim();
+  if (addr) return addr;
   const parts = [spot.province, spot.city].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "未标注地区";
+  return parts.length ? parts.join(" · ") : "未标注地点";
 }
 
 /* 导航用的地点名：优先用发布时填的地址，其次用省市 + 机位名兜底 */
@@ -2263,13 +2252,11 @@ function renderMarkers(list) {
 function filteredSpots() {
   const q = home.q.trim().toLowerCase();
   return home.spots.filter((s) => {
-    if (home.province && s.province !== home.province) return false;
-    if (home.city && s.city !== home.city) return false;
     if (home.tag && !(s.tags || []).includes(home.tag)) return false;
     if (home.favOnly && !isFav(s.id)) return false;
     if (q) {
       const hay = [
-        s.title, s.province, s.city, (s.tags || []).join(" "),
+        s.title, s.address, s.province, s.city, (s.tags || []).join(" "),
         s.desc, s.tips, s.bestTime
       ].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
@@ -2297,9 +2284,7 @@ function rankRowHtml(spot, i) {
 function renderHome() {
   const list = filteredSpots();
 
-  $("#statText").textContent =
-    " · " + home.spots.length + " 个机位 / " +
-    new Set(home.spots.map((s) => s.city).filter(Boolean)).size + " 座城市";
+  $("#statText").textContent = " · " + home.spots.length + " 个机位";
   $("#tabCountMap").textContent = list.length;
   $("#tabCountHot").textContent = list.length;
 
@@ -2319,8 +2304,6 @@ function renderHome() {
 
 function refreshHome() {
   home.spots = getSpots();
-  fillProvinces();
-  fillCities(home.province, home.city);
   fillTags();
   $("#favFilter").classList.toggle("on", home.favOnly);
   $("#searchInput").value = home.q;
@@ -2357,15 +2340,6 @@ function ensureHome() {
     renderHome();
   });
 
-  $("#provinceSelect").addEventListener("change", (e) => {
-    home.province = e.target.value;
-    fillCities(home.province, "");
-    renderHome();
-  });
-  $("#citySelect").addEventListener("change", (e) => {
-    home.city = e.target.value;
-    renderHome();
-  });
   $("#tagSelect").addEventListener("change", (e) => {
     home.tag = e.target.value;
     renderHome();
@@ -2379,8 +2353,6 @@ function ensureHome() {
 
   $("#resetFilter").addEventListener("click", () => {
     home.q = "";
-    home.province = "";
-    home.city = "";
     home.tag = "";
     home.favOnly = false;
     refreshHome();
@@ -2635,31 +2607,11 @@ function parseTags(str) {
 }
 
 function fillAddCities(province, keep) {
-  const spots = getSpots();
-  let cities = (PROVINCES[province] || []).slice();
-  spots.forEach((s) => {
-    if (s.province === province && s.city) cities.push(s.city);
-  });
-  cities = Array.from(new Set(cities));
-  const sel = $("#fCity");
-  sel.innerHTML =
-    '<option value="">' + (province ? "请选择城市" : "请先选省份") + "</option>" +
-    cities.map((c) => '<option value="' + esc(c) + '">' + esc(c) + "</option>").join("");
-  sel.disabled = !province;
-  if (keep && cities.includes(keep)) sel.value = keep;
+  /* 省市下拉已去掉，只留一个地名输入框 */
 }
 
 function refreshAddSelects() {
-  const spots = getSpots();
-  const set = new Set(Object.keys(PROVINCES));
-  spots.forEach((s) => s.province && set.add(s.province));
-  const sel = $("#fProvince");
-  const cur = sel.value;
-  sel.innerHTML =
-    '<option value="">请选择省份</option>' +
-    Array.from(set).map((p) => '<option value="' + esc(p) + '">' + esc(p) + "</option>").join("");
-  sel.value = set.has(cur) ? cur : "";
-  fillAddCities(sel.value, $("#fCity").value);
+  /* 同上：发布表单不再有省市下拉 */
 }
 
 function renderPreview() {
@@ -2711,10 +2663,6 @@ function compressImage(file) {
 
 function bindAdd() {
   refreshAddSelects();
-
-  $("#fProvince").addEventListener("change", (e) => {
-    fillAddCities(e.target.value, "");
-  });
 
   /* 快捷标签 */
   $("#quickTags").innerHTML = COMMON_TAGS.map(
@@ -2856,18 +2804,14 @@ function bindAdd() {
     e.preventDefault();
 
     const title = $("#fTitle").value.trim();
-    const province = $("#fProvince").value;
-    const city = $("#fCity").value;
+    const province = "";
+    const city = "";
     const address = $("#fAddress").value.trim();
     const desc = $("#fDesc").value.trim();
 
     let firstBad = null;
     [
-      [$("#fTitle"), !title],
-      [$("#fProvince"), !province],
-      [$("#fCity"), !city],
-      [$("#fAddress"), !address],
-      [$("#fDesc"), !desc]
+      [$("#fTitle"), !title]
     ].forEach(([el, bad]) => {
       markError(el, bad);
       if (bad && !firstBad) firstBad = el;
@@ -2876,7 +2820,7 @@ function bindAdd() {
     if (firstBad) {
       firstBad.focus();
       firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
-      return toast("请先填好名称、省市、地点和机位描述");
+      return toast("填个机位名称就能发布，其他都不用填");
     }
 
     const lngRaw = $("#fLng").value.trim();
