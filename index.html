@@ -1375,15 +1375,12 @@ label.upload-box {
       <section class="search-area">
         <div class="search-box">
           <span class="search-icon">⌕</span>
-          <input id="searchInput" type="search" placeholder="搜索机位、城市、关键词，如「海边」「老街」" autocomplete="off">
+          <input id="searchInput" type="search" placeholder="搜个地名或风格，如「广州」「日落」" autocomplete="off">
           <button id="searchBtn" class="btn btn-primary" type="button">搜索</button>
         </div>
-      </section>
-
-      <section class="filter-area">
-        <select id="tagSelect"><option value="">全部风格</option></select>
-        <button id="favFilter" class="chip-btn" type="button">♡ 只看收藏</button>
-        <button id="resetFilter" class="link-btn" type="button">重置</button>
+        <div class="filter-area">
+          <button id="favFilter" class="chip-btn" type="button">♡ 只看收藏</button>
+        </div>
       </section>
 
       <div class="tabs">
@@ -2137,14 +2134,7 @@ function fillCities(province, keep) {
 }
 
 function fillTags() {
-  const tags = new Set(COMMON_TAGS);
-  home.spots.forEach((s) => (s.tags || []).forEach((t) => tags.add(t)));
-  const sel = $("#tagSelect");
-  sel.innerHTML =
-    '<option value="">全部风格</option>' +
-    Array.from(tags).map((t) => '<option value="' + esc(t) + '">' + esc(t) + "</option>").join("");
-  if (home.tag && !tags.has(home.tag)) home.tag = "";
-  sel.value = home.tag;
+  /* 风格下拉已去掉：想看某个风格，直接在搜索框里打这个词 */
 }
 
 function mapNotice(text) {
@@ -2340,22 +2330,10 @@ function ensureHome() {
     renderHome();
   });
 
-  $("#tagSelect").addEventListener("change", (e) => {
-    home.tag = e.target.value;
-    renderHome();
-  });
-
   $("#favFilter").addEventListener("click", () => {
     home.favOnly = !home.favOnly;
     $("#favFilter").classList.toggle("on", home.favOnly);
     renderHome();
-  });
-
-  $("#resetFilter").addEventListener("click", () => {
-    home.q = "";
-    home.tag = "";
-    home.favOnly = false;
-    refreshHome();
   });
 
   $$("#view-home .tab").forEach((btn) => {
