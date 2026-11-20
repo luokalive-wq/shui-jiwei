@@ -1348,6 +1348,17 @@ label.upload-box {
   }
 }
 
+/* ---------- 发布人 ---------- */
+.card-author {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+#detailAuthor {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .view { display: none; }
 .view.active { display: block; }
 </style>
@@ -1367,6 +1378,7 @@ label.upload-box {
             <p class="subtitle">一水为爱发电<span class="stat" id="statText"></span></p>
           </div>
         </div>
+        <a href="#/mine" class="btn btn-ghost btn-sm" id="meBtn">我的</a>
         <a href="#/new" class="btn btn-primary btn-sm">＋ 发布机位</a>
       </div>
     </header>
@@ -1418,6 +1430,43 @@ label.upload-box {
     </footer>
   </section>
 
+  <!-- ================= 视图：我的机位 ================= -->
+  <section class="view" id="view-mine">
+    <header class="page-header">
+      <div class="container header-inner">
+        <div>
+          <a href="#/" class="back-link">← 返回水机位</a>
+          <h1 class="page-title">我发布的机位</h1>
+        </div>
+        <a href="#/new" class="btn btn-primary btn-sm">＋ 发布机位</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <div id="mineLogin" class="form-card" style="display:none">
+        <div class="field">
+          <label for="fNick">先留个名字<span class="hint">发布机上会显示这个名字</span></label>
+          <input id="fNick" type="text" placeholder="例：一水" maxlength="20">
+        </div>
+        <div class="form-actions">
+          <button id="saveNick" class="btn btn-primary" type="button">进入</button>
+        </div>
+      </div>
+
+      <div id="mineLogged" style="display:none">
+        <p class="form-tip">
+          当前身份：<strong id="mineName"></strong>
+          <button id="logoutBtn" class="link-btn" type="button">换个名字</button>
+        </p>
+        <div id="mineList" class="spot-list"></div>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <div class="container">这里只显示你自己发布到云端的机位</div>
+    </footer>
+  </section>
+
   <!-- ================= 视图：详情 ================= -->
   <section class="view" id="view-detail">
     <header class="page-header">
@@ -1451,6 +1500,7 @@ label.upload-box {
           </div>
           <div class="meta-line">
             <span id="detailArea"></span>
+            <span id="detailAuthor"></span>
             <span id="detailTags" class="chips" style="margin-top:0"></span>
           </div>
         </div>
@@ -1533,7 +1583,12 @@ label.upload-box {
       <form id="spotForm" class="form-card" novalidate>
         <div class="field">
           <label for="fTitle">机位名称<span class="hint">只有这一项必填，其余都可以空着</span></label>
-          <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：洱海栈道" maxlength="30" required>
+          <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：低涌稻田" maxlength="30" required>
+        </div>
+
+        <div class="field">
+          <label for="fAuthor">发布人<span class="hint">必填，会显示在这个机位上</span></label>
+          <input id="fAuthor" type="text" placeholder="你的名字，例：一水" maxlength="20" required>
         </div>
 
         <div class="field">
@@ -1764,7 +1819,31 @@ const DEFAULT_SPOTS = [];
    ========================================================== */
 
 /* ---------- 1. 数据层 ---------- */
-const KEYS = { spots: "jiweiji.spots.v1", favs: "jiweiji.favs.v1", liked: "jiweiji.liked.v1" };
+const KEYS = {
+  spots: "jiweiji.spots.v1",
+  favs: "jiweiji.favs.v1",
+  liked: "jiweiji.liked.v1",
+  user: "jiweiji.user.v1"
+};
+
+/* 本机身份：名字 + 一个随机 id（用来区分同名的人） */
+function getUser() {
+  const raw = LS.get(KEYS.user);
+  if (!raw) return null;
+  try {
+    const u = JSON.parse(raw);
+    if (u && u.name) return u;
+  } catch (e) {}
+  return null;
+}
+
+function setUser(name) {
+  const prev = getUser();
+  const uid = (prev && prev.uid) || "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const u = { name: String(name || "").trim(), uid: uid };
+  LS.set(KEYS.user, JSON.stringify(u));
+  return u;
+}
 
 function seedSpots() {
   return DEFAULT_SPOTS.map((s) => Object.assign({}, s, { images: (s.images || []).slice() }));
@@ -1949,6 +2028,7 @@ function cardHtml(spot) {
       '<div class="card-body">' +
         "<h3>" + esc(spot.title) + "</h3>" +
         '<div class="card-sub">' + esc(areaText(spot)) + "</div>" +
+        (spot.author ? '<div class="card-author">by ' + esc(spot.author) + "</div>" : "") +
         '<div class="chips">' + chipsHtml(spot.tags, 3) + "</div>" +
       "</div>" +
     "</a>"
@@ -2586,6 +2666,7 @@ function openDetail(id) {
 
   $("#detailTitle").textContent = spot.title;
   $("#detailArea").textContent = areaText(spot);
+  $("#detailAuthor").textContent = spot.author ? "by " + spot.author : "";
   $("#detailTags").innerHTML = chipsHtml(spot.tags, 12);
   $("#detailDesc").textContent = spot.desc || "这位摄影师还没有留下描述，可以先从图片里找构图线索。";
   $("#detailTips").textContent =
@@ -2750,6 +2831,9 @@ function compressImage(file) {
 function bindAdd() {
   refreshAddSelects();
 
+  const me0 = getUser();
+  if (me0 && me0.name) $("#fAuthor").value = me0.name;
+
   /* 快捷标签 */
   $("#quickTags").innerHTML = COMMON_TAGS.map(
     (t) => '<button type="button" class="quick-tag" data-tag="' + esc(t) + '">' + esc(t) + "</button>"
@@ -2852,7 +2936,8 @@ function bindAdd() {
     }
   });
 
-  $("#btnGeo").addEventListener("click", () => {    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
+  $("#btnGeo").addEventListener("click", () => {
+    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
     toast("正在获取当前位置…", 1600);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -2919,6 +3004,7 @@ function bindAdd() {
     e.preventDefault();
 
     const title = $("#fTitle").value.trim();
+    const authorName = $("#fAuthor").value.trim();
     const province = "";
     const city = "";
     const address = $("#fAddress").value.trim();
@@ -2927,6 +3013,7 @@ function bindAdd() {
     let firstBad = null;
     [
       [$("#fTitle"), !title],
+      [$("#fAuthor"), !authorName],
       [$("#fAddress"), !address]
     ].forEach(([el, bad]) => {
       markError(el, bad);
@@ -2936,13 +3023,15 @@ function bindAdd() {
     if (firstBad) {
       firstBad.focus();
       firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
-      return toast("机位名称和具体地点都必须填");
+      return toast("机位名称、发布人、具体地点都要填");
     }
 
     if (!add.picked.length) {
       $("#imgPreview").scrollIntoView({ behavior: "smooth", block: "center" });
       return toast("至少传 1 张实景图才能发布");
     }
+
+    const me = setUser(authorName);
 
     const lngRaw = $("#fLng").value.trim();
     const latRaw = $("#fLat").value.trim();
@@ -2954,6 +3043,8 @@ function bindAdd() {
     const spot = {
       id: "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       title: title,
+      author: me.name,
+      authorId: me.uid,
       province: province,
       city: city,
       address: address,
@@ -3084,6 +3175,8 @@ function toRow(s) {
     heat: Number(s.heat) || 0,
     views: Number(s.views) || 0,
     likes: Number(s.likes) || 0,
+    author: s.author || "",
+    author_id: s.authorId || "",
     created_at: s.createdAt || new Date().toISOString()
   };
 }
@@ -3106,6 +3199,8 @@ function fromRow(r) {
     heat: Number(r.heat) || 0,
     views: Number(r.views) || 0,
     likes: Number(r.likes) || 0,
+    author: r.author || "",
+    authorId: r.author_id || "",
     createdAt: r.created_at || new Date().toISOString()
   };
 }
@@ -3240,6 +3335,71 @@ function cloudHintText() {
   return "云端已连接：新发布的机位所有人可见";
 }
 
+const mine = { inited: false };
+
+function renderMine() {
+  const me = getUser();
+  const loginBox = $("#mineLogin");
+  const loggedBox = $("#mineLogged");
+  if (!me) {
+    loginBox.style.display = "block";
+    loggedBox.style.display = "none";
+    return;
+  }
+  loginBox.style.display = "none";
+  loggedBox.style.display = "block";
+  $("#mineName").textContent = me.name;
+
+  const all = getSpots();
+  const list = all.filter(
+    (s) => (s.authorId && s.authorId === me.uid) || (!s.authorId && s.author === me.name)
+  );
+  $("#mineList").innerHTML = list.length
+    ? list.map(cardHtml).join("")
+    : emptyHtml("还没有发布过机位", "点右上角「发布机位」，传张图、写上地点就能发。");
+}
+
+function refreshMineFromCloud() {
+  const me = getUser();
+  if (!me || !cloudOn()) return;
+  cloudFetchSpots()
+    .then((remote) => {
+      const local = getSpots();
+      const map = new Map();
+      remote.forEach((s) => map.set(String(s.id), s));
+      local.forEach((s) => {
+        const r = map.get(String(s.id));
+        const rImgs = r ? (r.images || []).filter(Boolean) : [];
+        const lImgs = (s.images || []).filter(Boolean);
+        map.set(String(s.id), Object.assign({}, s, r || {}, { images: rImgs.length ? rImgs : lImgs }));
+      });
+      saveSpots(Array.from(map.values()));
+      renderMine();
+    })
+    .catch(() => {});
+}
+
+function ensureMine() {
+  if (!mine.inited) {
+    mine.inited = true;
+    $("#saveNick").addEventListener("click", () => {
+      const name = $("#fNick").value.trim();
+      if (!name) return toast("先写上你的名字");
+      setUser(name);
+      renderMine();
+      refreshMineFromCloud();
+      toast("已记下：" + name);
+    });
+    $("#logoutBtn").addEventListener("click", () => {
+      LS.set(KEYS.user, "");
+      $("#fNick").value = "";
+      renderMine();
+    });
+  }
+  renderMine();
+  refreshMineFromCloud();
+}
+
 function parseHash() {
   const raw = String(location.hash || "").replace(/^#/, "");
   const parts = raw.split("/").filter(Boolean);
@@ -3247,6 +3407,7 @@ function parseHash() {
     return { view: "detail", id: decodeURIComponent(parts[1]) };
   }
   if (parts[0] === "new") return { view: "add" };
+  if (parts[0] === "mine") return { view: "mine" };
   return { view: "home" };
 }
 
@@ -3261,6 +3422,9 @@ function route() {
     setTimeout(() => home.map && home.map.invalidateSize(), 90);
   } else if (r.view === "detail") {
     openDetail(r.id);
+  } else if (r.view === "mine") {
+    ensureMine();
+    document.title = "我的机位 · 水机位";
   } else {
     ensureAdd();
     document.title = "发布机位 · 水机位";
