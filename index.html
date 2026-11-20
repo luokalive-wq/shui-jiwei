@@ -3156,7 +3156,7 @@ async function cloudSaveSpot(spot) {
   return images;
 }
 
-/* 启动时把云端数据拉到本地（本地独有的也保留，避免还没同步成功的丢失） */
+/* 启动时把云端数据拉到本地（本地独有的也保留，并顺手推上云，避免换域名后丢掉） */
 async function cloudSync() {
   if (!cloudOn()) return false;
   try {
@@ -3164,6 +3164,16 @@ async function cloudSync() {
     const local = getSpots();
     const map = new Map();
     remote.forEach((s) => map.set(String(s.id), s));
+
+    /* 本机有、云端没有的，补传上去（旧链接打开一次就能把数据搬到云） */
+    const localOnly = local.filter((s) => !map.has(String(s.id)));
+    for (const s of localOnly) {
+      try {
+        const imgs = await cloudSaveSpot(s);
+        map.set(String(s.id), Object.assign({}, s, { images: imgs }));
+      } catch (e) {}
+    }
+
     local.forEach((s) => {
       if (!map.has(String(s.id))) map.set(String(s.id), s);
     });
