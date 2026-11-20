@@ -1492,6 +1492,7 @@ label.upload-box {
         </div>
 
         <div class="detail-actions">
+          <button id="likeBtn" class="btn btn-primary" type="button">♥ 点赞 0</button>
           <button id="collectBtn" class="btn btn-secondary" type="button">♡ 收藏机位</button>
           <button id="copyAddrBtn" class="btn btn-ghost" type="button">复制导航地址</button>
           <button id="copyBaiduLinkBtn" class="btn btn-ghost" type="button">复制百度地图链接</button>
@@ -1763,7 +1764,7 @@ const DEFAULT_SPOTS = [];
    ========================================================== */
 
 /* ---------- 1. 数据层 ---------- */
-const KEYS = { spots: "jiweiji.spots.v1", favs: "jiweiji.favs.v1" };
+const KEYS = { spots: "jiweiji.spots.v1", favs: "jiweiji.favs.v1", liked: "jiweiji.liked.v1" };
 
 function seedSpots() {
   return DEFAULT_SPOTS.map((s) => Object.assign({}, s, { images: (s.images || []).slice() }));
@@ -1782,7 +1783,7 @@ function getSpots() {
       const arr = JSON.parse(raw);
       if (Array.isArray(arr) && arr.length) {
         return arr.map((s) =>
-          Object.assign({ images: [], tags: [], views: 0, likes: 0, heat: 60 }, s)
+          Object.assign({ images: [], tags: [], views: 0, likes: 0, heat: 0 }, s)
         );
       }
     } catch (e) {
@@ -1795,11 +1796,8 @@ function getSpots() {
 }
 
 function heatOf(spot) {
-  return (
-    (Number(spot.heat) || 0) +
-    (Number(spot.views) || 0) * 2 +
-    (Number(spot.likes) || 0) * 5
-  );
+  /* 热度 = 真实点赞数，没有点赞就是 0 */
+  return Number(spot.likes) || 0;
 }
 
 function getFavs() {
@@ -1819,6 +1817,26 @@ function saveFavs(list) {
 
 function isFav(id) {
   return getFavs().includes(String(id));
+}
+
+/* 本机是否给这个机位点过赞（一人一赞，可以取消） */
+function getLiked() {
+  const raw = LS.get(KEYS.liked);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLiked(list) {
+  LS.set(KEYS.liked, JSON.stringify(list));
+}
+
+function isLiked(id) {
+  return getLiked().includes(String(id));
 }
 
 /* ---------- 2. 封面与卡片 ---------- */
@@ -1925,7 +1943,7 @@ function cardHtml(spot) {
   return (
     '<a class="card" href="' + spotLink(spot.id) + '">' +
       '<div class="card-media" style="' + coverStyle(spot) + '">' +
-        '<span class="heat-badge">热度 ' + heatOf(spot) + "</span>" +
+        '<span class="heat-badge">♥ ' + heatOf(spot) + "</span>" +
         coverFallback(spot) +
       "</div>" +
       '<div class="card-body">' +
@@ -2266,7 +2284,7 @@ function renderMarkers(list) {
     const marker = L.marker(pos, { icon: pinIcon(i + 1), title: spot.title });
     marker.bindPopup(
       '<div class="popup-title">' + esc(spot.title) + "</div>" +
-      '<div class="popup-meta">' + esc(areaText(spot)) + " · 热度 " + heatOf(spot) + "</div>" +
+      '<div class="popup-meta">' + esc(areaText(spot)) + " · ♥ " + heatOf(spot) + "</div>" +
       '<a class="popup-link" href="' + spotLink(spot.id) + '">查看机位 →</a>'
     );
     marker.addTo(home.markers);
@@ -2307,7 +2325,7 @@ function rankRowHtml(spot, i) {
           ((spot.tags || []).length ? " · " + esc((spot.tags || []).slice(0, 2).join(" / ")) : "") +
         "</p>" +
       "</div>" +
-      '<div class="rank-heat"><strong>' + heatOf(spot) + "</strong><span>热度</span></div>" +
+      '<div class="rank-heat"><strong>' + heatOf(spot) + "</strong><span>点赞</span></div>" +
     "</a>"
   );
 }
@@ -2435,8 +2453,13 @@ function paintDetailHeat() {
   const s = detail.spot;
   if (!s) return;
   const likes = Number(s.likes) || 0;
-  $("#detailHeat").textContent =
-    "热度 " + heatOf(s) + (likes ? " · " + likes + " 人收藏" : "");
+  $("#detailHeat").textContent = "♥ " + likes;
+  const likeBtn = $("#likeBtn");
+  if (likeBtn) {
+    const on = isLiked(s.id);
+    likeBtn.classList.toggle("active", on);
+    likeBtn.textContent = on ? "♥ 已点赞 " + likes : "♥ 点赞 " + likes;
+  }
 }
 
 function paintFav() {
@@ -2454,6 +2477,35 @@ function bindDetail() {
   $("#btnAmap").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "amap")));
   $("#btnGoogle").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "google")));
 
+  const likeBtn = $("#likeBtn");
+  if (likeBtn) {
+    likeBtn.addEventListener("click", () => {
+      const cur = detail.spot;
+      if (!cur) return;
+      const spots = getSpots();
+      const s = spots.find((x) => String(x.id) === String(cur.id));
+      if (!s) return;
+      const liked = getLiked();
+      const key = String(s.id);
+      if (liked.includes(key)) {
+        saveLiked(liked.filter((f) => f !== key));
+        s.likes = Math.max(0, (Number(s.likes) || 0) - 1);
+        toast("已取消点赞");
+      } else {
+        const list = liked.concat([key]);
+        saveLiked(list);
+        s.likes = (Number(s.likes) || 0) + 1;
+        toast("点赞成功，热度 +1");
+      }
+      saveSpots(spots);
+      detail.spot = s;
+      paintFav();
+      cloudPatchLikes(s.id, s.likes).then((ok) => {
+        if (!ok) console.warn("点赞已记在本机，云端同步失败");
+      });
+    });
+  }
+
   $("#collectBtn").addEventListener("click", () => {
     const cur = detail.spot;
     if (!cur) return;
@@ -2464,12 +2516,9 @@ function bindDetail() {
     const key = String(s.id);
     if (favs.includes(key)) {
       saveFavs(favs.filter((f) => f !== key));
-      s.likes = Math.max(0, (Number(s.likes) || 0) - 1);
       toast("已取消收藏");
     } else {
-      favs.push(key);
-      saveFavs(favs);
-      s.likes = (Number(s.likes) || 0) + 1;
+      saveFavs(favs.concat([key]));
       toast("已加入收藏，可在首页「只看收藏」中快速找到");
     }
     saveSpots(spots);
@@ -2909,7 +2958,7 @@ function bindAdd() {
       tips: $("#fTips").value.trim(),
       bestTime: $("#fBestTime").value.trim(),
       panorama: $("#fPanorama").value.trim(),
-      heat: 60,
+      heat: 0,
       views: 0,
       likes: 0,
       images: add.picked.slice(),
@@ -2999,6 +3048,18 @@ function cloudHeaders(extra) {
   );
 }
 
+/* 把点赞数写回云端（需要 anon 有 UPDATE 权限） */
+function cloudPatchLikes(id, likes) {
+  if (!cloudOn()) return Promise.resolve(false);
+  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)), {
+    method: "PATCH",
+    headers: cloudHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({ likes: Number(likes) || 0 })
+  })
+    .then((r) => r.ok)
+    .catch(() => false);
+}
+
 function toRow(s) {
   return {
     id: String(s.id),
@@ -3014,7 +3075,7 @@ function toRow(s) {
     best_time: s.bestTime || "",
     panorama: s.panorama || "",
     images: s.images || [],
-    heat: Number(s.heat) || 60,
+    heat: Number(s.heat) || 0,
     views: Number(s.views) || 0,
     likes: Number(s.likes) || 0,
     created_at: s.createdAt || new Date().toISOString()
@@ -3036,7 +3097,7 @@ function fromRow(r) {
     bestTime: r.best_time || "",
     panorama: r.panorama || "",
     images: Array.isArray(r.images) ? r.images : [],
-    heat: Number(r.heat) || 60,
+    heat: Number(r.heat) || 0,
     views: Number(r.views) || 0,
     likes: Number(r.likes) || 0,
     createdAt: r.created_at || new Date().toISOString()
@@ -3179,6 +3240,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+
 
 </script>
 </body>
