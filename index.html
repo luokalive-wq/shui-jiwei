@@ -3179,9 +3179,20 @@ async function cloudSync() {
       } catch (e) {}
     }
 
-    local.forEach((s) => {
-      if (!map.has(String(s.id))) map.set(String(s.id), s);
-    });
+    /* 同一条机位两边都有：图片以「有图的一边」为准，点赞数用云端的 */
+    for (const l of local) {
+      const remoteRow = map.get(String(l.id));
+      if (!remoteRow) {
+        map.set(String(l.id), l);
+        continue;
+      }
+      const rImgs = (remoteRow.images || []).filter(Boolean);
+      const lImgs = (l.images || []).filter(Boolean);
+      map.set(
+        String(l.id),
+        Object.assign({}, l, remoteRow, { images: rImgs.length ? rImgs : lImgs })
+      );
+    }
     const merged = Array.from(map.values()).sort((a, b) =>
       String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
     );
