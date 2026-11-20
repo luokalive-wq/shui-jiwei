@@ -1537,8 +1537,8 @@ label.upload-box {
         </div>
 
         <div class="field">
-          <label for="fAddress">地点 / 地址<span class="hint">选填，填个地名就行，不用管省市</span></label>
-          <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 洱海才村码头" maxlength="60">
+          <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
+          <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 低涌稻田" maxlength="60" required>
           <div class="mini-tools">
             <button id="pickToggle" class="chip-btn" type="button">在地图上标个点（可选）</button>
             <button id="btnGeo" class="chip-btn" type="button">用当前位置</button>
@@ -1554,7 +1554,7 @@ label.upload-box {
         </div>
 
         <div class="field">
-          <label>实景图片<span class="hint">最多 6 张，自动压缩后存在本机浏览器</span></label>
+          <label>实景图片<span class="hint">必填，至少 1 张，最多 6 张</span></label>
           <label class="upload-box" for="fImages">
             <strong>＋ 从相册选图</strong>
             <span>选完自动压缩，第一张作为封面</span>
@@ -2926,7 +2926,8 @@ function bindAdd() {
 
     let firstBad = null;
     [
-      [$("#fTitle"), !title]
+      [$("#fTitle"), !title],
+      [$("#fAddress"), !address]
     ].forEach(([el, bad]) => {
       markError(el, bad);
       if (bad && !firstBad) firstBad = el;
@@ -2935,7 +2936,12 @@ function bindAdd() {
     if (firstBad) {
       firstBad.focus();
       firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
-      return toast("填个机位名称就能发布，其他都不用填");
+      return toast("机位名称和具体地点都必须填");
+    }
+
+    if (!add.picked.length) {
+      $("#imgPreview").scrollIntoView({ behavior: "smooth", block: "center" });
+      return toast("至少传 1 张实景图才能发布");
     }
 
     const lngRaw = $("#fLng").value.trim();
