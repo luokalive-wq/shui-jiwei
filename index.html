@@ -3144,7 +3144,12 @@ async function cloudUploadImage(dataUrl, spotId, idx) {
 async function cloudSaveSpot(spot) {
   const images = [];
   for (let i = 0; i < (spot.images || []).length; i++) {
-    images.push(await cloudUploadImage(spot.images[i], spot.id, i));
+    try {
+      const url = await cloudUploadImage(spot.images[i], spot.id, i);
+      if (url) images.push(url);
+    } catch (e) {
+      /* 单张图传失败不影响整条机位入库 */
+    }
   }
   const row = toRow(Object.assign({}, spot, { images: images }));
   const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table, {
