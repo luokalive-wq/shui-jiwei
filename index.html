@@ -1880,6 +1880,47 @@ function spotLink(id) {
   return "#/spot/" + encodeURIComponent(id);
 }
 
+/* 地名 → 坐标：用免费的 OSM Nominatim（不用注册、不需要 key），查不到就当没坐标 */
+const GEO_CACHE_KEY = "jiweiji.geo.v1";
+
+function geoCacheGet(q) {
+  try {
+    const all = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {};
+    return all[q];
+  } catch (e) {
+    return undefined;
+  }
+}
+
+function geoCacheSet(q, v) {
+  try {
+    const all = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {};
+    all[q] = v;
+    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+
+function geocode(text) {
+  const q = String(text || "").trim();
+  if (!q) return Promise.resolve(null);
+  const hitCache = geoCacheGet(q);
+  if (hitCache !== undefined) {
+    return Promise.resolve(hitCache && hitCache.length === 2 ? hitCache : null);
+  }
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=cn&accept-language=zh-CN&q=" +
+    encodeURIComponent(q);
+  return fetch(url, { headers: { Accept: "application/json" } })
+    .then((r) => (r.ok ? r.json() : []))
+    .then((arr) => {
+      const hit = Array.isArray(arr) ? arr[0] : null;
+      const v = hit && isNum(hit.lon) && isNum(hit.lat) ? [Number(hit.lon), Number(hit.lat)] : null;
+      geoCacheSet(q, v || []);
+      return v;
+    })
+    .catch(() => null);
+}
+
 function cardHtml(spot) {
   return (
     '<a class="card" href="' + spotLink(spot.id) + '">' +
@@ -2352,6 +2393,27 @@ function ensureHome() {
 /* ---------- 5. 详情 ---------- */
 const detail = { spot: null, imgs: [], idx: 0, mini: null, bound: false };
 
+function drawDetailMap(spot) {
+  $("#mapBlock").style.display = "block";
+  if (detail.mini) {
+    detail.mini.remove();
+    detail.mini = null;
+  }
+  if (typeof L === "undefined") {
+    $("#detailMap").innerHTML =
+      '<div class="map-fallback" style="height:100%"><div class="map-fallback-inner">地图组件未加载（需要联网）<br>坐标：' +
+      esc(spot.lng) + ", " + esc(spot.lat) + "</div></div>";
+    return;
+  }
+  const pos = toDisplay(spot.lng, spot.lat);
+  detail.mini = L.map("detailMap", { scrollWheelZoom: false, zoomControl: true }).setView(pos, 14);
+  makeBase(activeBase).addTo(detail.mini);
+  L.marker(pos, { icon: pinIcon("★") }).addTo(detail.mini);
+  setTimeout(() => {
+    if (detail.mini) detail.mini.invalidateSize();
+  }, 160);
+}
+
 function detailPaint() {
   const img = $("#carImg");
   if (!img) return;
@@ -2524,21 +2586,18 @@ function openDetail(id) {
     detail.mini.remove();
     detail.mini = null;
   }
+  $("#mapBlock").style.display = "none";
   const hasGeo = isNum(spot.lng) && isNum(spot.lat);
-  $("#mapBlock").style.display = hasGeo ? "block" : "none";
   if (hasGeo) {
-    if (typeof L === "undefined") {
-      $("#detailMap").innerHTML =
-        '<div class="map-fallback" style="height:100%"><div class="map-fallback-inner">地图组件未加载（需要联网）<br>坐标：' +
-        esc(spot.lng) + ", " + esc(spot.lat) + "</div></div>";
-    } else {
-      const pos = toDisplay(spot.lng, spot.lat);
-      detail.mini = L.map("detailMap", { scrollWheelZoom: false, zoomControl: true }).setView(pos, 13);
-      makeBase(activeBase).addTo(detail.mini);
-      L.marker(pos, { icon: pinIcon("★") }).addTo(detail.mini);
-      setTimeout(() => {
-        if (detail.mini) detail.mini.invalidateSize();
-      }, 160);
+    drawDetailMap(spot);
+  } else {
+    /* 只填了地名的机位：临时查一次坐标，查到就把地图显示出来 */
+    const addrQ = spotAddress(spot);
+    if (addrQ) {
+      geocode(addrQ).then((p) => {
+        if (!p || !detail.spot || String(detail.spot.id) !== String(spot.id)) return;
+        drawDetailMap(Object.assign({}, spot, { lng: p[0], lat: p[1] }));
+      });
     }
   }
 
@@ -2744,8 +2803,7 @@ function bindAdd() {
     }
   });
 
-  $("#btnGeo").addEventListener("click", () => {
-    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
+  $("#btnGeo").addEventListener("click", () => {    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
     toast("正在获取当前位置…", 1600);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -2769,6 +2827,36 @@ function bindAdd() {
         add.pickMap.setView(pos);
       }
     });
+  });
+
+  /* 只填地名也能定位：自动把地名换成坐标 */
+  const addrInput = $("#fAddress");
+  let geoInputTimer = null;
+  let geoLastQ = "";
+
+  function tryGeo() {
+    const q = addrInput.value.trim();
+    if (!q || q === geoLastQ) return;
+    if (isNum($("#fLng").value) && isNum($("#fLat").value)) {
+      geoLastQ = q;
+      return;
+    }
+    geoLastQ = q;
+    toast("正在按「" + q + "」找位置…", 1800);
+    geocode(q).then((p) => {
+      if (!p) return toast("这个地名没查到坐标，可以直接发布，导航会按地名搜");
+      setCoord(p[0], p[1]);
+      toast("已自动定位到「" + q + "」", 1600);
+    });
+  }
+
+  addrInput.addEventListener("input", () => {
+    clearTimeout(geoInputTimer);
+    geoInputTimer = setTimeout(tryGeo, 1200);
+  });
+  addrInput.addEventListener("blur", () => {
+    clearTimeout(geoInputTimer);
+    tryGeo();
   });
 
   /* 提交 */
