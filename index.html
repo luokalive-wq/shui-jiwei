@@ -3152,12 +3152,35 @@ async function cloudSaveSpot(spot) {
     }
   }
   const row = toRow(Object.assign({}, spot, { images: images }));
-  const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table, {
-    method: "POST",
-    headers: cloudHeaders({ Prefer: "resolution=merge-duplicates" }),
-    body: JSON.stringify(row)
-  });
-  if (!res.ok) throw new Error("写入失败 " + res.status);
+
+  /* 先按普通插入写；重复就改成更新；网络抖动重试两次 */
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table, {
+        method: "POST",
+        headers: cloudHeaders({ Prefer: "return=minimal" }),
+        body: JSON.stringify(row)
+      });
+      if (res.ok) return images;
+
+      if (res.status === 409 || res.status === 400) {
+        const patch = await fetch(
+          cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(row.id)),
+          {
+            method: "PATCH",
+            headers: cloudHeaders({ Prefer: "return=minimal" }),
+            body: JSON.stringify(row)
+          }
+        );
+        if (patch.ok) return images;
+        throw new Error("写入失败 " + patch.status);
+      }
+      throw new Error("写入失败 " + res.status);
+    } catch (e) {
+      if (attempt === 2) throw e;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
   return images;
 }
 
