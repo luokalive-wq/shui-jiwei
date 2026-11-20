@@ -1,0 +1,3175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水机位 · 全国摄影机位地图</title>
+<link rel="stylesheet" href="https://fastly.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* =========================================================
+   机位集 · 全局样式（苹果通透白）
+   ========================================================= */
+
+/* ---------- 0. 基础 ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --blue: #007aff;
+  --blue-deep: #0064e0;
+  --blue-soft: #eef4ff;
+  --ink: #11161d;
+  --ink-2: #3d4653;
+  --muted: #7c8794;
+  --line: rgba(17, 24, 39, 0.08);
+  --line-strong: rgba(17, 24, 39, 0.14);
+  --bg: #f6f9fe;
+  --card: rgba(255, 255, 255, 0.92);
+  --shadow: 0 12px 34px rgba(24, 52, 102, 0.1);
+  --shadow-sm: 0 4px 16px rgba(24, 52, 102, 0.07);
+  --r-lg: 22px;
+  --r-md: 16px;
+  --r-sm: 12px;
+  --maxw: 960px;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "PingFang SC",
+    "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  line-height: 1.6;
+  min-height: 100vh;
+  background: radial-gradient(900px 520px at 50% -14%, #e4efff 0%, rgba(228, 239, 255, 0) 62%),
+    var(--bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.container {
+  width: min(92%, var(--maxw));
+  margin: 0 auto;
+}
+
+/* ---------- 1. 顶栏 ---------- */
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.74);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.logo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(145deg, #4aa6ff, #0064e0);
+  box-shadow: 0 6px 16px rgba(0, 110, 255, 0.28);
+}
+
+.brand h1 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat {
+  color: var(--blue);
+  margin-left: 4px;
+}
+
+/* ---------- 2. 按钮 / 表单控件 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.18s, color 0.18s, border-color 0.18s,
+    transform 0.18s, box-shadow 0.18s;
+  white-space: nowrap;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.22);
+}
+
+.btn-primary:hover {
+  background: var(--blue-deep);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.btn-secondary:hover {
+  background: #e1ecff;
+}
+
+.btn-secondary.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: #fff;
+  color: var(--ink-2);
+  border-color: var(--line-strong);
+}
+
+.btn-ghost:hover {
+  border-color: rgba(17, 24, 39, 0.26);
+  color: var(--ink);
+}
+
+.btn-sm {
+  padding: 8px 15px;
+  font-size: 13px;
+}
+
+.btn-lg {
+  width: 100%;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(0, 122, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #8b95a3 50%),
+    linear-gradient(135deg, #8b95a3 50%, transparent 50%);
+  background-position: calc(100% - 17px) calc(50% + 1px),
+    calc(100% - 12px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.65;
+}
+
+/* ---------- 3. 首页：搜索与筛选 ---------- */
+.search-area {
+  margin: 22px 0 14px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  padding: 5px 6px 5px 14px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.search-box:focus-within {
+  border-color: rgba(0, 122, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
+}
+
+.search-icon {
+  flex: none;
+  font-size: 16px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 9px 0;
+  font-size: 14.5px;
+}
+
+.search-box input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.search-box input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.search-box .btn {
+  padding: 9px 22px;
+}
+
+.filter-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.filter-area select {
+  width: auto;
+  min-width: 116px;
+  padding: 8px 32px 8px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+}
+
+.chip-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.chip-btn:hover {
+  border-color: rgba(17, 24, 39, 0.24);
+}
+
+.chip-btn.on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 6px 4px;
+  margin-left: auto;
+}
+
+.link-btn:hover {
+  color: var(--blue);
+}
+
+/* ---------- 4. 视图切换 ---------- */
+.tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.05);
+  margin-bottom: 16px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.tab.active {
+  background: #fff;
+  color: var(--blue);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(24, 52, 102, 0.12);
+}
+
+.tab .count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+  animation: fadeIn 0.28s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 5. 地图 ---------- */
+.map-wrap {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+#map {
+  height: 52vh;
+  min-height: 320px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: #eaf2fe;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+}
+
+/* 建独立层叠上下文，防止 Leaflet 的控件压住吸顶导航 */
+#map,
+#detailMap,
+#pickMap {
+  position: relative;
+  z-index: 1;
+}
+
+.map-tip {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 500;
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+
+.map-switch {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 600;
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px rgba(24, 52, 102, 0.14);
+}
+
+.base-btn {
+  border: none;
+  background: transparent;
+  color: #5a6573;
+  font-size: 11.5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.base-btn.on {
+  background: var(--blue);
+  color: #fff;
+}
+
+.map-notice {
+  display: none;
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  max-width: 86%;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.map-fallback {
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  text-align: center;
+}
+
+.map-fallback-inner {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 300px;
+  line-height: 1.7;
+}
+
+.leaflet-container {
+  background: #eaf2fe;
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 0;
+}
+
+.leaflet-popup-content {
+  margin: 11px 13px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+  box-shadow: none;
+}
+
+.popup-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: var(--ink);
+}
+
+.popup-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.popup-link {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 自定义地图标记（避免 Leaflet 图片资源 404） */
+.pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  background: linear-gradient(145deg, #4aa6ff, #0069e0);
+  box-shadow: 0 6px 14px rgba(0, 90, 200, 0.35);
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+}
+
+.pin span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ---------- 6. 机位卡片 ---------- */
+.spot-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+
+.card-media {
+  position: relative;
+  height: 172px;
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+}
+
+.cover-fallback {
+  text-align: center;
+  color: #1f4977;
+  padding: 0 16px;
+}
+
+.cover-fallback span {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  opacity: 0.85;
+}
+
+.cover-fallback em {
+  display: block;
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.62;
+  letter-spacing: 0.5px;
+}
+
+.heat-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #b4530a;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.card-body {
+  padding: 13px 15px 15px;
+}
+
+.card-body h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.chip {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: #2f6bb0;
+  line-height: 1.5;
+}
+
+/* ---------- 7. 热度榜 ---------- */
+.rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.rank-row:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow);
+}
+
+.rank-no {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(17, 24, 39, 0.05);
+}
+
+.top-1 .rank-no {
+  background: linear-gradient(145deg, #ffd97a, #f6b93b);
+  color: #7a4a00;
+}
+
+.top-2 .rank-no {
+  background: linear-gradient(145deg, #e8edf5, #c3ccd9);
+  color: #46505e;
+}
+
+.top-3 .rank-no {
+  background: linear-gradient(145deg, #f6d7bd, #dfa97c);
+  color: #6f3c14;
+}
+
+.rank-thumb {
+  flex: none;
+  width: 62px;
+  height: 62px;
+  border-radius: 14px;
+  background-size: cover;
+  background-position: center;
+}
+
+.rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-main h3 {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-main p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-heat {
+  flex: none;
+  text-align: right;
+  min-width: 52px;
+}
+
+.rank-heat strong {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--blue);
+  line-height: 1.2;
+}
+
+.rank-heat span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- 8. 空状态 / 区块标题 / 页脚 ---------- */
+.empty {
+  grid-column: 1 / -1;
+  padding: 46px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.empty strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 650;
+  margin-bottom: 12px;
+  letter-spacing: 0.2px;
+}
+
+.action-wrap {
+  text-align: center;
+  margin: 8px 0 34px;
+}
+
+.action-wrap .btn {
+  padding: 12px 30px;
+  font-weight: 600;
+}
+
+.page-footer {
+  padding: 22px 0 34px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* ---------- 9. 详情页 ---------- */
+.detail-card {
+  background: #fff;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin: 18px 0 26px;
+}
+
+.carousel {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #eef4ff;
+}
+
+.carousel-img {
+  width: 100%;
+  height: clamp(240px, 40vh, 420px);
+  object-fit: cover;
+  background: #eef4ff;
+  transition: opacity 0.25s ease;
+}
+
+.carousel-empty {
+  height: clamp(200px, 30vh, 320px);
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #d9e7ff, #f1f7ff 52%, #c7dcff);
+  text-align: center;
+  color: #1f4977;
+}
+
+.carousel-empty span {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 4px;
+}
+
+.carousel-empty em {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 12.5px;
+  opacity: 0.65;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.84);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #1f2d3d;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  transition: 0.16s;
+}
+
+.carousel-arrow:hover {
+  background: #fff;
+}
+
+.carousel-arrow.prev {
+  left: 12px;
+}
+
+.carousel-arrow.next {
+  right: 12px;
+}
+
+.carousel-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 11px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.carousel-dots i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: 0.18s;
+}
+
+.carousel-dots i.on {
+  width: 16px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.detail-head {
+  padding: 16px 4px 4px;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-title-row h2 {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+  line-height: 1.35;
+}
+
+.heat-pill {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b4530a;
+  background: #fff4e6;
+  padding: 4px 11px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.meta-line .dot::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--line-strong);
+}
+
+.content-block {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.content-block h3 {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink-2);
+  margin-bottom: 7px;
+  letter-spacing: 0.3px;
+}
+
+.content-block p {
+  font-size: 14px;
+  color: #2b3442;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.content-block .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#detailMap {
+  height: 240px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #eaf2fe;
+  border: 1px solid var(--line);
+}
+
+.nav-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 22px 0 0;
+}
+
+.nav-buttons button {
+  flex: 1 1 150px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.nav-buttons button:hover {
+  border-color: rgba(0, 122, 255, 0.5);
+  color: var(--blue);
+  background: #f8fbff;
+}
+
+.nav-buttons button.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.2);
+}
+
+.nav-buttons button.primary:hover {
+  background: var(--blue-deep);
+  border-color: var(--blue-deep);
+  color: #fff;
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.detail-actions .btn {
+  flex: 1 1 130px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--blue);
+  margin-bottom: 6px;
+}
+
+.page-title {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+}
+
+/* ---------- 10. 发布页 ---------- */
+.form-card {
+  background: #fff;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin: 18px 0 34px;
+}
+
+.field {
+  margin-bottom: 17px;
+}
+
+.field > label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.field .hint {
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+label.upload-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 20px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 14px;
+  background: #fbfdff;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: 0.18s;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.upload-box:hover {
+  border-color: rgba(0, 122, 255, 0.55);
+  color: var(--blue);
+  background: #f7fbff;
+}
+
+.upload-box strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.upload-box input {
+  display: none;
+}
+
+.img-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.img-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #eef4ff;
+}
+
+.img-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.img-item .del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.img-item .del:hover {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.img-item .cover-tag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 122, 255, 0.92);
+  color: #fff;
+  font-size: 10px;
+}
+
+.quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quick-tag {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.quick-tag:hover {
+  border-color: rgba(0, 122, 255, 0.4);
+  color: var(--blue);
+}
+
+.quick-tag.on {
+  background: var(--blue-soft);
+  border-color: rgba(0, 122, 255, 0.45);
+  color: var(--blue);
+}
+
+.mini-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.pick-wrap {
+  margin-top: 10px;
+}
+
+#pickMap {
+  height: 300px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #eaf2fe;
+  border: 1px solid var(--line);
+}
+
+.form-tip {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.7;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.form-actions .btn-primary {
+  flex: 2;
+}
+
+.form-actions .btn-ghost {
+  flex: 1;
+}
+
+.is-error {
+  border-color: #ff3b30 !important;
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.12) !important;
+}
+
+/* ---------- 11. 轻提示 ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  z-index: 999;
+  max-width: 82vw;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(18, 24, 32, 0.9);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- 12. 响应式 ---------- */
+@media (max-width: 720px) {
+  .container {
+    width: 92%;
+  }
+  .brand h1 {
+    font-size: 17px;
+  }
+  .subtitle {
+    font-size: 11.5px;
+  }
+  .logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 17px;
+  }
+  .header-inner .btn-sm {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+  .spot-list {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .card-media {
+    height: 132px;
+  }
+  .cover-fallback span {
+    font-size: 17px;
+  }
+  #map {
+    height: 46vh;
+    min-height: 280px;
+  }
+  .detail-card {
+    padding: 14px;
+  }
+  .detail-title-row h2 {
+    font-size: 19px;
+  }
+  .form-card {
+    padding: 18px 16px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .rank-thumb {
+    width: 54px;
+    height: 54px;
+  }
+  .nav-buttons button {
+    flex: 1 1 100%;
+  }
+  .action-wrap .btn {
+    width: 100%;
+  }
+}
+
+.view { display: none; }
+.view.active { display: block; }
+</style>
+</head>
+<body data-page="app">
+
+<div id="app">
+
+  <!-- ================= 视图：首页 ================= -->
+  <section class="view active" id="view-home">
+    <header class="page-header">
+      <div class="container header-inner">
+        <div class="brand">
+          <div class="logo">水</div>
+          <div>
+            <h1>水机位</h1>
+            <p class="subtitle">一水为爱发电<span class="stat" id="statText"></span></p>
+          </div>
+        </div>
+        <a href="#/new" class="btn btn-primary btn-sm">＋ 发布机位</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="search-area">
+        <div class="search-box">
+          <span class="search-icon">⌕</span>
+          <input id="searchInput" type="search" placeholder="搜索机位、城市、关键词，如「海边」「老街」" autocomplete="off">
+          <button id="searchBtn" class="btn btn-primary" type="button">搜索</button>
+        </div>
+      </section>
+
+      <section class="filter-area">
+        <select id="provinceSelect"><option value="">全部省份</option></select>
+        <select id="citySelect"><option value="">全部城市</option></select>
+        <select id="tagSelect"><option value="">全部风格</option></select>
+        <button id="favFilter" class="chip-btn" type="button">♡ 只看收藏</button>
+        <button id="resetFilter" class="link-btn" type="button">重置</button>
+      </section>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="map" type="button">地图探索<span class="count" id="tabCountMap">0</span></button>
+        <button class="tab" data-tab="hot" type="button">热度榜<span class="count" id="tabCountHot">0</span></button>
+      </div>
+
+      <section id="mapView" class="tab-content active">
+        <div class="map-wrap">
+          <div id="map"></div>
+          <div class="map-switch">
+            <button class="base-btn on" data-base="amap" type="button">高德</button>
+            <button class="base-btn" data-base="osm" type="button">OSM</button>
+          </div>
+          <div class="map-tip">点标记看机位 · 未标坐标的机位在下方列表里</div>
+        </div>
+        <section class="spot-list" id="spotList"></section>
+      </section>
+
+      <section id="hotView" class="tab-content">
+        <h2 class="section-title">当前筛选下的 Top 10</h2>
+        <div class="rank-list" id="hotRank"></div>
+      </section>
+
+      <div class="action-wrap">
+        <a href="#/new" class="btn btn-primary">＋ 发布一个新机位</a>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <div class="container">
+        机位数据保存在本机浏览器 · 导航会跳转到百度 / 高德 / Google 地图<br>
+        坐标与描述多为示例内容，实拍前请核对现场情况
+      </div>
+    </footer>
+  </section>
+
+  <!-- ================= 视图：详情 ================= -->
+  <section class="view" id="view-detail">
+    <header class="page-header">
+      <div class="container header-inner">
+        <div>
+          <a href="#/" class="back-link">← 返回水机位</a>
+          <h1 class="page-title">机位详情</h1>
+        </div>
+        <a href="#/new" class="btn btn-ghost btn-sm">＋ 发布机位</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <div id="detailMissing" class="detail-card" style="display:none">
+        <div class="empty">
+          <strong>没有找到这个机位</strong>
+          它可能已被删除，或链接不完整。回到首页重新挑选一个吧。
+        </div>
+        <div class="action-wrap">
+          <a href="#/" class="btn btn-secondary">回到水机位</a>
+        </div>
+      </div>
+
+      <article id="detailBox" class="detail-card">
+        <div id="imgCarousel" class="carousel"></div>
+
+        <div class="detail-head">
+          <div class="detail-title-row">
+            <h2 id="detailTitle"></h2>
+            <span id="detailHeat" class="heat-pill"></span>
+          </div>
+          <div class="meta-line">
+            <span id="detailArea"></span>
+            <span id="detailTags" class="chips" style="margin-top:0"></span>
+          </div>
+        </div>
+
+        <div class="content-block">
+          <h3>机位分享</h3>
+          <p id="detailDesc"></p>
+        </div>
+
+        <div class="content-block">
+          <h3>避雷 &amp; 注意事项</h3>
+          <p id="detailTips"></p>
+        </div>
+
+        <div class="content-block">
+          <h3>推荐拍摄时段</h3>
+          <p id="detailTime"></p>
+        </div>
+
+        <div class="content-block">
+          <h3>导航地址</h3>
+          <p id="detailAddress"></p>
+        </div>
+
+        <div class="content-block" id="panoramaBlock" style="display:none">
+          <h3>360° 全景</h3>
+          <p id="detailPanorama"></p>
+        </div>
+
+        <div class="content-block" id="mapBlock" style="display:none">
+          <h3>位置地图</h3>
+          <div id="detailMap"></div>
+        </div>
+
+        <div class="nav-buttons">
+          <button id="btnBaidu" type="button" class="primary">百度地图导航</button>
+          <button id="btnAmap" type="button">高德地图导航</button>
+          <button id="btnGoogle" type="button">Google Maps</button>
+        </div>
+
+        <div class="detail-actions">
+          <button id="collectBtn" class="btn btn-secondary" type="button">♡ 收藏机位</button>
+          <button id="copyAddrBtn" class="btn btn-ghost" type="button">复制导航地址</button>
+          <button id="copyBaiduLinkBtn" class="btn btn-ghost" type="button">复制百度地图链接</button>
+          <button id="copyLinkBtn" class="btn btn-ghost" type="button">复制页面链接</button>
+        </div>
+      </article>
+
+      <section id="relatedSection">
+        <h2 class="section-title">附近 / 同风格机位</h2>
+        <div id="relatedList" class="spot-list"></div>
+      </section>
+
+      <div class="action-wrap">
+        <a href="#/" class="btn btn-secondary">继续逛其他机位</a>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <div class="container">
+        导航会在新窗口打开第三方地图 · 坐标采用 WGS84，展示与跳转时自动纠偏
+      </div>
+    </footer>
+  </section>
+
+  <!-- ================= 视图：发布 ================= -->
+  <section class="view" id="view-add">
+    <header class="page-header">
+      <div class="container header-inner">
+        <div>
+          <a href="#/" class="back-link">← 返回水机位</a>
+          <h1 class="page-title">发布摄影机位</h1>
+        </div>
+        <a href="#/" class="btn btn-ghost btn-sm">取消</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <form id="spotForm" class="form-card" novalidate>
+        <div class="field">
+          <label for="fTitle">机位名称<span class="hint">必填，例如「洱海环湖栈道」</span></label>
+          <input id="fTitle" type="text" placeholder="给这个机位起个名字" maxlength="30" required>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="fProvince">省份<span class="hint">必填</span></label>
+            <select id="fProvince" required><option value="">请选择省份</option></select>
+          </div>
+          <div class="field">
+            <label for="fCity">城市<span class="hint">必填</span></label>
+            <select id="fCity" required><option value="">请先选省份</option></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fAddress">具体地点 / 地址<span class="hint">必填，写成地图上能搜到的名字</span></label>
+          <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 洱海生态廊道才村码头" maxlength="60" required>
+          <div class="mini-tools">
+            <button id="pickToggle" class="chip-btn" type="button">在地图上标个点（可选）</button>
+            <button id="btnGeo" class="chip-btn" type="button">用当前位置</button>
+          </div>
+          <div class="pick-wrap" id="pickWrap" style="display:none">
+            <div id="pickMap"></div>
+            <div class="form-row" style="margin-top:10px">
+              <input id="fLng" type="text" inputmode="decimal" placeholder="经度（自动填充）">
+              <input id="fLat" type="text" inputmode="decimal" placeholder="纬度（自动填充）">
+            </div>
+            <p class="form-tip">点地图任意位置即可自动填入；不填也能发布，导航会按上面填的地点名去搜。</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>实景图片<span class="hint">最多 6 张，自动压缩后存在本机浏览器</span></label>
+          <label class="upload-box" for="fImages">
+            <strong>＋ 从相册选图</strong>
+            <span>选完自动压缩，第一张作为封面</span>
+            <input type="file" id="fImages" accept="image/*" multiple>
+          </label>
+          <div class="mini-tools" style="margin-top:8px">
+            <label class="chip-btn" for="fImagesShot">📷 现拍一张</label>
+            <input type="file" id="fImagesShot" accept="image/*" capture="environment" style="display:none">
+          </div>
+          <div class="img-grid" id="imgPreview"></div>
+        </div>
+
+        <div class="field">
+          <label for="fTags">风格关键词<span class="hint">逗号隔开，最多 6 个</span></label>
+          <input id="fTags" type="text" placeholder="例：电影感, 日落, 人少">
+          <div class="quick-tags" id="quickTags"></div>
+        </div>
+
+        <div class="field">
+          <label for="fDesc">机位描述<span class="hint">必填，写清构图、光线、怎么站</span></label>
+          <textarea id="fDesc" rows="6" placeholder="例：沿环湖栈道往北走约 300 米，护栏缺口处可以下到浅滩；用 35mm 低机位，把远山压在画面上三分之一。"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="fTips">避雷 &amp; 注意事项<span class="hint">选填</span></label>
+          <textarea id="fTips" rows="4" placeholder="例：下午逆光严重；栈道尽头无护栏，注意安全；不要挡住居民出入口。"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="fBestTime">推荐拍摄时段<span class="hint">选填</span></label>
+            <input id="fBestTime" type="text" placeholder="例：日落前 1 小时">
+          </div>
+          <div class="field">
+            <label for="fPanorama">全景链接<span class="hint">选填</span></label>
+            <input id="fPanorama" type="text" placeholder="https://…">
+          </div>
+        </div>
+
+        <p class="form-tip">
+          发布后数据只保存在当前浏览器（localStorage）；换设备或清除浏览器数据会丢失。
+        </p>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">发布机位</button>
+          <button id="resetForm" type="reset" class="btn btn-ghost">清空</button>
+        </div>
+      </form>
+
+      <div class="action-wrap">
+        <a href="#/" class="btn btn-secondary">先去看看别人的机位</a>
+      </div>
+    </main>
+
+    <footer class="page-footer">
+      <div class="container">
+        发布即代表你愿意把这处机位分享给其他摄影者 · 请勿公开私人住宅的具体门牌
+      </div>
+    </footer>
+  </section>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://fastly.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+
+/* ==========================================================
+   机位集 · 主逻辑（原生 JS，无框架、无后端）
+   页面通过 <body data-page="home|detail|add"> 区分
+   ========================================================== */
+
+/* ---------- 0. 通用工具 ---------- */
+const $ = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function esc(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ESC_MAP[c]);
+}
+
+/* localStorage 兜底：无痕模式 / file:// 限制下退回内存存储 */
+const memoryStore = new Map();
+const LS = {
+  avail: null,
+  get(key) {
+    if (this.avail !== false) {
+      try {
+        const v = localStorage.getItem(key);
+        this.avail = true;
+        return v;
+      } catch (e) {
+        this.avail = false;
+      }
+    }
+    return memoryStore.has(key) ? memoryStore.get(key) : null;
+  },
+  set(key, val) {
+    try {
+      localStorage.setItem(key, val);
+      this.avail = true;
+      memoryStore.delete(key);
+      return true;
+    } catch (e) {
+      this.avail = false;
+      memoryStore.set(key, val);
+      return false;
+    }
+  }
+};
+
+let toastTimer = null;
+function toast(msg, duration) {
+  let el = $("#toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  // 强制重排，连续调用时也能重新播放动画
+  void el.offsetWidth;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), duration || 2200);
+}
+
+function isNum(v) {
+  if (v === "" || v === null || v === undefined) return false;
+  return Number.isFinite(Number(v)) && Number(v) !== 0;
+}
+
+function copyText(text) {
+  return (async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        return ok;
+      } catch (e2) {
+        return false;
+      }
+    }
+  })();
+}
+
+/* ---------- 1. 静态数据 ---------- */
+const PROVINCES = {
+  北京: ["北京"],
+  天津: ["天津"],
+  上海: ["上海"],
+  重庆: ["重庆"],
+  河北: ["石家庄", "唐山", "秦皇岛", "保定", "邯郸", "承德", "张家口", "廊坊", "沧州"],
+  山西: ["太原", "大同", "平遥", "忻州", "晋中", "临汾"],
+  内蒙古: ["呼和浩特", "包头", "鄂尔多斯", "呼伦贝尔", "赤峰"],
+  辽宁: ["沈阳", "大连", "丹东", "鞍山", "本溪"],
+  吉林: ["长春", "吉林", "延边", "长白山"],
+  黑龙江: ["哈尔滨", "漠河", "齐齐哈尔", "牡丹江", "佳木斯"],
+  江苏: ["南京", "苏州", "无锡", "扬州", "常州", "徐州", "南通", "镇江"],
+  浙江: ["杭州", "宁波", "温州", "绍兴", "嘉兴", "舟山", "湖州", "丽水"],
+  安徽: ["合肥", "黄山", "芜湖", "宣城", "池州"],
+  福建: ["福州", "厦门", "泉州", "漳州", "宁德", "武夷山"],
+  江西: ["南昌", "景德镇", "九江", "上饶", "婺源", "赣州"],
+  山东: ["济南", "青岛", "烟台", "威海", "泰安", "济宁", "日照"],
+  河南: ["郑州", "洛阳", "开封", "安阳", "焦作", "南阳"],
+  湖北: ["武汉", "宜昌", "襄阳", "恩施", "荆州", "十堰"],
+  湖南: ["长沙", "张家界", "凤凰", "岳阳", "株洲", "郴州"],
+  广东: ["广州", "深圳", "珠海", "佛山", "东莞", "惠州", "汕头", "湛江", "中山", "江门"],
+  广西: ["南宁", "桂林", "柳州", "北海", "阳朔", "梧州"],
+  海南: ["海口", "三亚", "万宁", "陵水", "文昌"],
+  四川: ["成都", "乐山", "阿坝", "甘孜", "宜宾", "绵阳", "西昌", "泸州"],
+  贵州: ["贵阳", "遵义", "黔东南", "安顺", "黔南", "铜仁"],
+  云南: ["昆明", "大理", "丽江", "香格里拉", "西双版纳", "腾冲", "建水", "玉溪"],
+  西藏: ["拉萨", "林芝", "日喀则", "阿里", "山南"],
+  陕西: ["西安", "延安", "宝鸡", "汉中", "榆林", "咸阳"],
+  甘肃: ["兰州", "敦煌", "张掖", "嘉峪关", "天水", "甘南"],
+  青海: ["西宁", "海西", "海南州", "玉树", "海东"],
+  宁夏: ["银川", "中卫", "固原", "吴忠"],
+  新疆: ["乌鲁木齐", "喀什", "伊宁", "阿勒泰", "吐鲁番", "库车", "和田"],
+  香港: ["香港"],
+  澳门: ["澳门"],
+  台湾: ["台北", "高雄", "台中", "花莲", "垦丁"]
+};
+
+const COMMON_TAGS = [
+  "电影感", "日落", "夜景", "老街", "海边", "人少", "氛围感",
+  "复古", "出片", "治愈", "城市", "烟火气"
+];
+
+const DEFAULT_SPOTS = [];
+
+/* ==========================================================
+   水机位 · 单文件版逻辑（哈希路由：首页 / 详情 / 发布）
+   前面已拼入通用工具与内置数据（PROVINCES / COMMON_TAGS / DEFAULT_SPOTS）
+   ========================================================== */
+
+/* ---------- 1. 数据层 ---------- */
+const KEYS = { spots: "jiweiji.spots.v1", favs: "jiweiji.favs.v1" };
+
+function seedSpots() {
+  return DEFAULT_SPOTS.map((s) => Object.assign({}, s, { images: (s.images || []).slice() }));
+}
+
+function saveSpots(list) {
+  const ok = LS.set(KEYS.spots, JSON.stringify(list));
+  if (!ok) toast("本地存储空间不足，本次修改只在当前页面有效");
+  return ok;
+}
+
+function getSpots() {
+  const raw = LS.get(KEYS.spots);
+  if (raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) {
+        return arr.map((s) =>
+          Object.assign({ images: [], tags: [], views: 0, likes: 0, heat: 60 }, s)
+        );
+      }
+    } catch (e) {
+      /* 数据损坏则回落内置数据 */
+    }
+  }
+  const seed = seedSpots();
+  saveSpots(seed);
+  return seed;
+}
+
+function heatOf(spot) {
+  return (
+    (Number(spot.heat) || 0) +
+    (Number(spot.views) || 0) * 2 +
+    (Number(spot.likes) || 0) * 5
+  );
+}
+
+function getFavs() {
+  const raw = LS.get(KEYS.favs);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveFavs(list) {
+  LS.set(KEYS.favs, JSON.stringify(list));
+}
+
+function isFav(id) {
+  return getFavs().includes(String(id));
+}
+
+/* ---------- 2. 封面与卡片 ---------- */
+const PALETTES = [
+  ["#dbe9ff", "#f1f7ff", "#b9d3ff"],
+  ["#ffe8dc", "#fff7f1", "#ffd0b8"],
+  ["#e0f3e8", "#f5fbf7", "#bfe6cf"],
+  ["#e9e3ff", "#f7f4ff", "#d0c4ff"],
+  ["#fff0cd", "#fffbf2", "#ffe1a4"],
+  ["#ddf1f7", "#f3fbfd", "#b9e3ee"]
+];
+
+function paletteFor(seed) {
+  const str = String(seed == null ? "0" : seed);
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 9973;
+  return PALETTES[h % PALETTES.length];
+}
+
+function coverStyle(spot) {
+  const img = spot.images && spot.images.length ? spot.images[0] : null;
+  if (img) return 'background-image:url("' + img + '")';
+  const p = paletteFor(spot.id || spot.title);
+  return (
+    "background-image:linear-gradient(135deg," + p[0] + " 0%," + p[1] + " 52%," + p[2] + " 100%)"
+  );
+}
+
+function coverFallback(spot) {
+  if (spot.images && spot.images.length) return "";
+  return (
+    '<div class="cover-fallback"><span>' + esc(spot.city || spot.province || "机位") +
+    "</span><em>" + esc(spot.title) + "</em></div>"
+  );
+}
+
+function chipsHtml(tags, max) {
+  return (tags || [])
+    .slice(0, max || 3)
+    .map((t) => '<span class="chip">' + esc(t) + "</span>")
+    .join("");
+}
+
+function areaText(spot) {
+  const parts = [spot.province, spot.city].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "未标注地区";
+}
+
+/* 导航用的地点名：优先用发布时填的地址，其次用省市 + 机位名兜底 */
+function spotAddress(spot) {
+  const addr = String(spot.address || "").trim();
+  if (addr) return addr;
+  return [spot.province, spot.city, spot.title].filter(Boolean).join(" ");
+}
+
+function spotLink(id) {
+  return "#/spot/" + encodeURIComponent(id);
+}
+
+function cardHtml(spot) {
+  return (
+    '<a class="card" href="' + spotLink(spot.id) + '">' +
+      '<div class="card-media" style="' + coverStyle(spot) + '">' +
+        '<span class="heat-badge">热度 ' + heatOf(spot) + "</span>" +
+        coverFallback(spot) +
+      "</div>" +
+      '<div class="card-body">' +
+        "<h3>" + esc(spot.title) + "</h3>" +
+        '<div class="card-sub">' + esc(areaText(spot)) + "</div>" +
+        '<div class="chips">' + chipsHtml(spot.tags, 3) + "</div>" +
+      "</div>" +
+    "</a>"
+  );
+}
+
+function emptyHtml(title, sub) {
+  return '<div class="empty"><strong>' + esc(title) + "</strong>" + esc(sub) + "</div>";
+}
+
+/* ---------- 3. 坐标与底图 ---------- */
+let activeBase = "amap";
+
+const BASES = {
+  amap: {
+    url: "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
+    subdomains: "1234",
+    attribution: "&copy; 高德地图",
+    maxZoom: 18,
+    gcj: true
+  },
+  osm: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    subdomains: "abc",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+    maxZoom: 18,
+    gcj: false
+  }
+};
+
+function makeBase(kind) {
+  const b = BASES[kind] || BASES.amap;
+  return L.tileLayer(b.url, {
+    subdomains: b.subdomains,
+    maxZoom: b.maxZoom,
+    minZoom: 3,
+    attribution: b.attribution
+  });
+}
+
+function outOfChina(lng, lat) {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function transformLat(x, y) {
+  let ret = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
+  ret += ((20 * Math.sin(y * Math.PI) + 40 * Math.sin((y / 3) * Math.PI)) * 2) / 3;
+  ret += ((160 * Math.sin((y / 12) * Math.PI) + 320 * Math.sin((y * Math.PI) / 30)) * 2) / 3;
+  return ret;
+}
+
+function transformLng(x, y) {
+  let ret = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
+  ret += ((20 * Math.sin(x * Math.PI) + 40 * Math.sin((x / 3) * Math.PI)) * 2) / 3;
+  ret += ((150 * Math.sin((x / 12) * Math.PI) + 300 * Math.sin((x / 30) * Math.PI)) * 2) / 3;
+  return ret;
+}
+
+function wgs84ToGcj02(lng, lat) {
+  if (outOfChina(lng, lat)) return [lng, lat];
+  const a = 6378245.0;
+  const ee = 0.00669342162296594323;
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = (lat / 180.0) * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
+  dLng = (dLng * 180.0) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
+  return [lng + dLng, lat + dLat];
+}
+
+function gcj02ToWgs84(lng, lat) {
+  if (outOfChina(lng, lat)) return [lng, lat];
+  const g = wgs84ToGcj02(lng, lat);
+  return [lng * 2 - g[0], lat * 2 - g[1]];
+}
+
+function gcj02ToBd09(lng, lat) {
+  const xPi = (Math.PI * 3000.0) / 180.0;
+  const z = Math.sqrt(lng * lng + lat * lat) + 0.00002 * Math.sin(lat * xPi);
+  const theta = Math.atan2(lat, lng) + 0.000003 * Math.cos(lng * xPi);
+  return [z * Math.cos(theta) + 0.0065, z * Math.sin(theta) + 0.006];
+}
+
+function toDisplay(lng, lat) {
+  if (!isNum(lng) || !isNum(lat)) return null;
+  const nLng = Number(lng);
+  const nLat = Number(lat);
+  if ((BASES[activeBase] || BASES.amap).gcj) {
+    const g = wgs84ToGcj02(nLng, nLat);
+    return [g[1], g[0]];
+  }
+  return [nLat, nLng];
+}
+
+function fromDisplay(lng, lat) {
+  return (BASES[activeBase] || BASES.amap).gcj ? gcj02ToWgs84(lng, lat) : [lng, lat];
+}
+
+function pinIcon(text) {
+  return L.divIcon({
+    className: "pin-wrap",
+    html: '<div class="pin"><span>' + esc(text) + "</span></div>",
+    iconSize: [28, 28],
+    iconAnchor: [14, 31],
+    popupAnchor: [0, -31]
+  });
+}
+
+/* 百度地址链接：有坐标走坐标，没坐标用地名去搜；同时给出 App 唤起与网页两条 */
+function baiduLinks(spot) {
+  const text = spotAddress(spot);
+  const q = encodeURIComponent(text);
+  const city = encodeURIComponent(spot.city || spot.province || "");
+  const hasGeo = isNum(spot.lng) && isNum(spot.lat);
+
+  if (hasGeo) {
+    const g = wgs84ToGcj02(Number(spot.lng), Number(spot.lat));
+    const b = gcj02ToBd09(g[0], g[1]);
+    const lat = b[1].toFixed(6);
+    const lng = b[0].toFixed(6);
+    return {
+      app:
+        "baidumap://map/marker?location=" + lat + "," + lng +
+        "&title=" + encodeURIComponent(spot.title) +
+        "&content=" + q + "&coord_type=bd09ll&src=webapp.jiweiji",
+      web:
+        "https://api.map.baidu.com/marker?location=" + lat + "," + lng +
+        "&title=" + encodeURIComponent(spot.title) +
+        "&content=" + q + "&output=html&src=webapp.jiweiji",
+      map: "https://map.baidu.com/?latlng=" + lat + "," + lng + "&title=" + encodeURIComponent(spot.title)
+    };
+  }
+
+  const search = "https://map.baidu.com/search?query=" + q + (city ? "&region=" + city : "");
+  return {
+    app:
+      "baidumap://map/direction?destination=name:" + q +
+      "&mode=driving&coord_type=bd09ll&src=webapp.jiweiji",
+    web: search,
+    map: search
+  };
+}
+
+/* 手机先试唤起百度地图 App，没装就自动落到网页版；电脑直接开网页版 */
+function openBaidu(spot) {
+  const links = baiduLinks(spot);
+  const isMobile = /Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(navigator.userAgent);
+  if (!isMobile) return openExternal(links.web);
+
+  let left = false;
+  const onHide = () => { left = true; };
+  document.addEventListener("visibilitychange", onHide, { once: true });
+  window.location.href = links.app;
+  setTimeout(() => {
+    if (!left && !document.hidden) window.location.href = links.web;
+  }, 1500);
+}
+
+function navUrl(spot, kind) {
+  const text = spotAddress(spot);
+  const q = encodeURIComponent(text);
+  const hasGeo = isNum(spot.lng) && isNum(spot.lat);
+
+  if (kind === "baidu") return baiduLinks(spot).web;
+  if (kind === "amap") {
+    if (!hasGeo) return "https://uri.amap.com/search?keyword=" + q + "&src=jiweiji";
+    const g = wgs84ToGcj02(Number(spot.lng), Number(spot.lat));
+    return (
+      "https://uri.amap.com/marker?position=" + g[0].toFixed(6) + "," + g[1].toFixed(6) +
+      "&name=" + encodeURIComponent(spot.title) + "&src=jiweiji&coordinate=gaode&callnative=0"
+    );
+  }
+  return hasGeo
+    ? "https://www.google.com/maps/search/?api=1&query=" + spot.lat + "," + spot.lng
+    : "https://www.google.com/maps/search/?api=1&query=" + q;
+}
+
+function openExternal(url) {
+  const win = window.open(url, "_blank", "noopener");
+  if (!win) toast("浏览器拦截了新窗口，请允许弹窗后重试");
+}
+
+/* ---------- 4. 首页 ---------- */
+const home = {
+  q: "",
+  province: "",
+  city: "",
+  tag: "",
+  favOnly: false,
+  spots: [],
+  map: null,
+  markers: null,
+  baseLayer: null,
+  lastList: [],
+  tileLoaded: 0,
+  tileErrors: 0,
+  inited: false
+};
+
+function cityOptions(province) {
+  let cities = [];
+  if (province) {
+    cities = (PROVINCES[province] || []).slice();
+    home.spots.forEach((s) => {
+      if (s.province === province && s.city) cities.push(s.city);
+    });
+  } else {
+    Object.values(PROVINCES).forEach((arr) => cities.push.apply(cities, arr));
+    home.spots.forEach((s) => s.city && cities.push(s.city));
+  }
+  return Array.from(new Set(cities));
+}
+
+function fillProvinces() {
+  const set = new Set(Object.keys(PROVINCES));
+  home.spots.forEach((s) => s.province && set.add(s.province));
+  const sel = $("#provinceSelect");
+  sel.innerHTML =
+    '<option value="">全部省份</option>' +
+    Array.from(set).map((p) => '<option value="' + esc(p) + '">' + esc(p) + "</option>").join("");
+  if (home.province && !set.has(home.province)) home.province = "";
+  sel.value = home.province;
+}
+
+function fillCities(province, keep) {
+  const cities = cityOptions(province);
+  const sel = $("#citySelect");
+  sel.innerHTML =
+    '<option value="">全部城市</option>' +
+    cities.map((c) => '<option value="' + esc(c) + '">' + esc(c) + "</option>").join("");
+  if (keep && cities.includes(keep)) {
+    home.city = keep;
+  } else {
+    home.city = "";
+  }
+  sel.value = home.city;
+}
+
+function fillTags() {
+  const tags = new Set(COMMON_TAGS);
+  home.spots.forEach((s) => (s.tags || []).forEach((t) => tags.add(t)));
+  const sel = $("#tagSelect");
+  sel.innerHTML =
+    '<option value="">全部风格</option>' +
+    Array.from(tags).map((t) => '<option value="' + esc(t) + '">' + esc(t) + "</option>").join("");
+  if (home.tag && !tags.has(home.tag)) home.tag = "";
+  sel.value = home.tag;
+}
+
+function mapNotice(text) {
+  const wrap = $("#view-home .map-wrap");
+  if (!wrap) return;
+  let el = $(".map-notice", wrap);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "map-notice";
+    wrap.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = "block";
+}
+
+function hideMapNotice() {
+  const el = $("#view-home .map-notice");
+  if (el) el.style.display = "none";
+}
+
+function syncBaseUI() {
+  $$(".base-btn").forEach((b) => b.classList.toggle("on", b.dataset.base === activeBase));
+}
+
+function applyBase(kind) {
+  if (!home.map) return;
+  activeBase = kind;
+  home.tileLoaded = 0;
+  home.tileErrors = 0;
+  if (home.baseLayer) home.map.removeLayer(home.baseLayer);
+  home.baseLayer = makeBase(kind);
+  home.baseLayer.on("tileload", () => {
+    home.tileLoaded++;
+    hideMapNotice();
+  });
+  home.baseLayer.on("tileerror", () => {
+    home.tileErrors++;
+    if (home.tileLoaded > 0) return;
+    if (home.tileErrors !== 6) return;
+    if (activeBase === "osm") {
+      toast("OSM 底图加载失败，已切到高德底图");
+      applyBase("amap");
+      syncBaseUI();
+      renderMarkers(home.lastList);
+    } else {
+      mapNotice("底图暂时加载不出来：可点右上角切换底图，或直接看下方机位列表");
+    }
+  });
+  home.baseLayer.addTo(home.map);
+}
+
+function initHomeMap() {
+  const el = $("#map");
+  if (!el) return;
+
+  if (typeof L === "undefined") {
+    el.classList.add("map-fallback");
+    el.innerHTML =
+      '<div class="map-fallback-inner">地图组件未加载（需要联网）<br>下方的机位列表、筛选和热度榜可以正常使用。</div>';
+    return;
+  }
+
+  home.map = L.map(el, { zoomControl: true, scrollWheelZoom: false }).setView([34.5, 107.5], 4);
+  home.markers = L.layerGroup().addTo(home.map);
+  applyBase(activeBase);
+  syncBaseUI();
+  home.map.once("click", () => home.map.scrollWheelZoom.enable());
+
+  $$(".base-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.base === activeBase) return;
+      applyBase(btn.dataset.base);
+      syncBaseUI();
+      renderMarkers(home.lastList);
+    });
+  });
+}
+
+function renderMarkers(list) {
+  home.lastList = list;
+  if (!home.map || !home.markers) return;
+  home.markers.clearLayers();
+
+  const points = [];
+  list.forEach((spot, i) => {
+    const pos = toDisplay(spot.lng, spot.lat);
+    if (!pos) return;
+    const marker = L.marker(pos, { icon: pinIcon(i + 1), title: spot.title });
+    marker.bindPopup(
+      '<div class="popup-title">' + esc(spot.title) + "</div>" +
+      '<div class="popup-meta">' + esc(areaText(spot)) + " · 热度 " + heatOf(spot) + "</div>" +
+      '<a class="popup-link" href="' + spotLink(spot.id) + '">查看机位 →</a>'
+    );
+    marker.addTo(home.markers);
+    points.push(pos);
+  });
+
+  if (points.length === 1) {
+    home.map.setView(points[0], 12);
+  } else if (points.length > 1) {
+    home.map.fitBounds(L.latLngBounds(points).pad(0.15), { maxZoom: 11 });
+  }
+}
+
+function filteredSpots() {
+  const q = home.q.trim().toLowerCase();
+  return home.spots.filter((s) => {
+    if (home.province && s.province !== home.province) return false;
+    if (home.city && s.city !== home.city) return false;
+    if (home.tag && !(s.tags || []).includes(home.tag)) return false;
+    if (home.favOnly && !isFav(s.id)) return false;
+    if (q) {
+      const hay = [
+        s.title, s.province, s.city, (s.tags || []).join(" "),
+        s.desc, s.tips, s.bestTime
+      ].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function rankRowHtml(spot, i) {
+  return (
+    '<a class="rank-row top-' + (i + 1) + '" href="' + spotLink(spot.id) + '">' +
+      '<div class="rank-no">' + (i + 1) + "</div>" +
+      '<div class="rank-thumb" style="' + coverStyle(spot) + '"></div>' +
+      '<div class="rank-main">' +
+        "<h3>" + esc(spot.title) + "</h3>" +
+        "<p>" + esc(areaText(spot)) +
+          ((spot.tags || []).length ? " · " + esc((spot.tags || []).slice(0, 2).join(" / ")) : "") +
+        "</p>" +
+      "</div>" +
+      '<div class="rank-heat"><strong>' + heatOf(spot) + "</strong><span>热度</span></div>" +
+    "</a>"
+  );
+}
+
+function renderHome() {
+  const list = filteredSpots();
+
+  $("#statText").textContent =
+    " · " + home.spots.length + " 个机位 / " +
+    new Set(home.spots.map((s) => s.city).filter(Boolean)).size + " 座城市";
+  $("#tabCountMap").textContent = list.length;
+  $("#tabCountHot").textContent = list.length;
+
+  $("#spotList").innerHTML = list.length
+    ? list.map(cardHtml).join("")
+    : home.spots.length
+      ? emptyHtml("没有匹配的机位", "换个关键词，或点「重置」看看全部机位。")
+      : emptyHtml("还没有机位", "点右上角「发布机位」，把你去过的机位放上来。");
+
+  const ranked = list.slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 10);
+  $("#hotRank").innerHTML = ranked.length
+    ? ranked.map(rankRowHtml).join("")
+    : emptyHtml("榜单还是空的", "先发布一个机位，它就会出现在这里。");
+
+  renderMarkers(list);
+}
+
+function refreshHome() {
+  home.spots = getSpots();
+  fillProvinces();
+  fillCities(home.province, home.city);
+  fillTags();
+  $("#favFilter").classList.toggle("on", home.favOnly);
+  $("#searchInput").value = home.q;
+  renderHome();
+}
+
+function ensureHome() {
+  if (home.inited) {
+    refreshHome();
+    return;
+  }
+  home.inited = true;
+  initHomeMap();
+
+  const searchInput = $("#searchInput");
+  let searchTimer = null;
+
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      home.q = searchInput.value;
+      renderHome();
+    }, 180);
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      home.q = searchInput.value;
+      renderHome();
+    }
+  });
+  $("#searchBtn").addEventListener("click", () => {
+    home.q = searchInput.value;
+    renderHome();
+  });
+
+  $("#provinceSelect").addEventListener("change", (e) => {
+    home.province = e.target.value;
+    fillCities(home.province, "");
+    renderHome();
+  });
+  $("#citySelect").addEventListener("change", (e) => {
+    home.city = e.target.value;
+    renderHome();
+  });
+  $("#tagSelect").addEventListener("change", (e) => {
+    home.tag = e.target.value;
+    renderHome();
+  });
+
+  $("#favFilter").addEventListener("click", () => {
+    home.favOnly = !home.favOnly;
+    $("#favFilter").classList.toggle("on", home.favOnly);
+    renderHome();
+  });
+
+  $("#resetFilter").addEventListener("click", () => {
+    home.q = "";
+    home.province = "";
+    home.city = "";
+    home.tag = "";
+    home.favOnly = false;
+    refreshHome();
+  });
+
+  $$("#view-home .tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $$("#view-home .tab").forEach((b) => b.classList.toggle("active", b === btn));
+      $$("#view-home .tab-content").forEach((sec) =>
+        sec.classList.toggle("active", sec.id === btn.dataset.tab + "View")
+      );
+      if (btn.dataset.tab === "map" && home.map) setTimeout(() => home.map.invalidateSize(), 80);
+    });
+  });
+
+  refreshHome();
+}
+
+/* ---------- 5. 详情 ---------- */
+const detail = { spot: null, imgs: [], idx: 0, mini: null, bound: false };
+
+function detailPaint() {
+  const img = $("#carImg");
+  if (!img) return;
+  img.style.opacity = "0";
+  setTimeout(() => {
+    img.src = detail.imgs[detail.idx];
+    img.style.opacity = "1";
+  }, 100);
+  $$(".carousel-dots i").forEach((d, i) => d.classList.toggle("on", i === detail.idx));
+}
+
+function detailStep(delta) {
+  if (detail.imgs.length < 2) return;
+  detail.idx = (detail.idx + delta + detail.imgs.length) % detail.imgs.length;
+  detailPaint();
+}
+
+function paintDetailHeat() {
+  const s = detail.spot;
+  if (!s) return;
+  const likes = Number(s.likes) || 0;
+  $("#detailHeat").textContent =
+    "热度 " + heatOf(s) + (likes ? " · " + likes + " 人收藏" : "");
+}
+
+function paintFav() {
+  const s = detail.spot;
+  if (!s) return;
+  const on = isFav(s.id);
+  const btn = $("#collectBtn");
+  btn.classList.toggle("active", on);
+  btn.textContent = on ? "已收藏 ♥" : "♡ 收藏机位";
+  paintDetailHeat();
+}
+
+function bindDetail() {
+  $("#btnBaidu").addEventListener("click", () => detail.spot && openBaidu(detail.spot));
+  $("#btnAmap").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "amap")));
+  $("#btnGoogle").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "google")));
+
+  $("#collectBtn").addEventListener("click", () => {
+    const cur = detail.spot;
+    if (!cur) return;
+    const spots = getSpots();
+    const s = spots.find((x) => String(x.id) === String(cur.id));
+    if (!s) return;
+    const favs = getFavs();
+    const key = String(s.id);
+    if (favs.includes(key)) {
+      saveFavs(favs.filter((f) => f !== key));
+      s.likes = Math.max(0, (Number(s.likes) || 0) - 1);
+      toast("已取消收藏");
+    } else {
+      favs.push(key);
+      saveFavs(favs);
+      s.likes = (Number(s.likes) || 0) + 1;
+      toast("已加入收藏，可在首页「只看收藏」中快速找到");
+    }
+    saveSpots(spots);
+    detail.spot = s;
+    paintFav();
+  });
+
+  $("#copyAddrBtn").addEventListener("click", async () => {
+    const s = detail.spot;
+    if (!s) return;
+    const ok = await copyText(spotAddress(s));
+    toast(ok ? "导航地址已复制，粘到地图 App 里就能搜" : "复制失败，请手动选择");
+  });
+
+  $("#copyBaiduLinkBtn").addEventListener("click", async () => {
+    const s = detail.spot;
+    if (!s) return;
+    const ok = await copyText(baiduLinks(s).map);
+    toast(ok ? "百度地图链接已复制，发给别人也能直接定位" : "复制失败，请手动选择");
+  });
+
+  $("#copyLinkBtn").addEventListener("click", async () => {
+    const ok = await copyText(location.href);
+    toast(ok ? "页面链接已复制" : "复制失败，请手动复制地址栏");
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (!$("#view-detail").classList.contains("active")) return;
+    if (e.key === "ArrowLeft") detailStep(-1);
+    if (e.key === "ArrowRight") detailStep(1);
+  });
+}
+
+function openDetail(id) {
+  const spots = getSpots();
+  const index = spots.findIndex((s) => String(s.id) === String(id));
+
+  if (!id || index < 0) {
+    detail.spot = null;
+    detail.imgs = [];
+    $("#detailBox").style.display = "none";
+    $("#relatedSection").style.display = "none";
+    $("#detailMissing").style.display = "block";
+    if (detail.mini) {
+      detail.mini.remove();
+      detail.mini = null;
+    }
+    document.title = "机位详情 · 水机位";
+    return;
+  }
+
+  $("#detailMissing").style.display = "none";
+  $("#detailBox").style.display = "";
+  $("#relatedSection").style.display = "";
+
+  const spot = spots[index];
+  spot.views = (Number(spot.views) || 0) + 1;
+  saveSpots(spots);
+
+  detail.spot = spot;
+  detail.imgs = (spot.images || []).slice();
+  detail.idx = 0;
+
+  document.title = spot.title + " · 水机位";
+
+  $("#detailTitle").textContent = spot.title;
+  $("#detailArea").textContent = areaText(spot);
+  $("#detailTags").innerHTML = chipsHtml(spot.tags, 12);
+  $("#detailDesc").textContent = spot.desc || "这位摄影师还没有留下描述，可以先从图片里找构图线索。";
+  $("#detailTips").textContent =
+    spot.tips || "暂无特别提醒。请尊重当地居民与现场秩序，不翻越护栏、不进入封闭区域。";
+  $("#detailTime").textContent = spot.bestTime || "全天可拍，具体以现场光线为准。";
+  $("#detailAddress").textContent = spotAddress(spot);
+
+  if (spot.panorama) {
+    $("#panoramaBlock").style.display = "block";
+    $("#detailPanorama").innerHTML =
+      '<a href="' + esc(spot.panorama) + '" target="_blank" rel="noopener" style="color:#007aff;font-weight:600">打开 360° 全景 ↗</a>';
+  } else {
+    $("#panoramaBlock").style.display = "none";
+  }
+
+  /* 轮播 */
+  const carousel = $("#imgCarousel");
+  if (!detail.imgs.length) {
+    carousel.innerHTML =
+      '<div class="carousel-empty"><div><span>' + esc(spot.city || "机位") +
+      "</span><em>" + esc(spot.title) + " · 暂无实景图</em></div></div>";
+  } else {
+    carousel.innerHTML =
+      '<img id="carImg" class="carousel-img" alt="' + esc(spot.title) + '" src="' + detail.imgs[0] + '">' +
+      (detail.imgs.length > 1
+        ? '<button type="button" class="carousel-arrow prev" id="carPrev" aria-label="上一张">‹</button>' +
+          '<button type="button" class="carousel-arrow next" id="carNext" aria-label="下一张">›</button>' +
+          '<div class="carousel-dots" id="carDots">' +
+          detail.imgs.map((_, i) => '<i data-i="' + i + '" class="' + (i === 0 ? "on" : "") + '"></i>').join("") +
+          "</div>"
+        : "");
+
+    if (detail.imgs.length > 1) {
+      $("#carPrev").addEventListener("click", () => detailStep(-1));
+      $("#carNext").addEventListener("click", () => detailStep(1));
+      $("#carDots").addEventListener("click", (e) => {
+        const dot = e.target.closest("i");
+        if (!dot) return;
+        detail.idx = Number(dot.dataset.i) || 0;
+        detailPaint();
+      });
+    }
+  }
+
+  /* 位置地图 */
+  if (detail.mini) {
+    detail.mini.remove();
+    detail.mini = null;
+  }
+  const hasGeo = isNum(spot.lng) && isNum(spot.lat);
+  $("#mapBlock").style.display = hasGeo ? "block" : "none";
+  if (hasGeo) {
+    if (typeof L === "undefined") {
+      $("#detailMap").innerHTML =
+        '<div class="map-fallback" style="height:100%"><div class="map-fallback-inner">地图组件未加载（需要联网）<br>坐标：' +
+        esc(spot.lng) + ", " + esc(spot.lat) + "</div></div>";
+    } else {
+      const pos = toDisplay(spot.lng, spot.lat);
+      detail.mini = L.map("detailMap", { scrollWheelZoom: false, zoomControl: true }).setView(pos, 13);
+      makeBase(activeBase).addTo(detail.mini);
+      L.marker(pos, { icon: pinIcon("★") }).addTo(detail.mini);
+      setTimeout(() => {
+        if (detail.mini) detail.mini.invalidateSize();
+      }, 160);
+    }
+  }
+
+  /* 相关机位 */
+  const related = spots
+    .filter((s) => String(s.id) !== String(spot.id))
+    .map((s) => {
+      let score = 0;
+      if (s.city && s.city === spot.city) score += 3;
+      if (s.province && s.province === spot.province) score += 1;
+      (s.tags || []).forEach((t) => {
+        if ((spot.tags || []).includes(t)) score += 2;
+      });
+      return { s, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((x) => x.s);
+
+  if (related.length) {
+    $("#relatedSection").style.display = "";
+    $("#relatedList").innerHTML = related.map(cardHtml).join("");
+  } else {
+    $("#relatedSection").style.display = "none";
+  }
+
+  if (!detail.bound) {
+    detail.bound = true;
+    bindDetail();
+  }
+  paintFav();
+}
+
+/* ---------- 6. 发布 ---------- */
+const add = { picked: [], inited: false, pickMap: null, pickMarker: null };
+
+function parseTags(str) {
+  return String(str || "")
+    .split(/[,，、;；\s]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function fillAddCities(province, keep) {
+  const spots = getSpots();
+  let cities = (PROVINCES[province] || []).slice();
+  spots.forEach((s) => {
+    if (s.province === province && s.city) cities.push(s.city);
+  });
+  cities = Array.from(new Set(cities));
+  const sel = $("#fCity");
+  sel.innerHTML =
+    '<option value="">' + (province ? "请选择城市" : "请先选省份") + "</option>" +
+    cities.map((c) => '<option value="' + esc(c) + '">' + esc(c) + "</option>").join("");
+  sel.disabled = !province;
+  if (keep && cities.includes(keep)) sel.value = keep;
+}
+
+function refreshAddSelects() {
+  const spots = getSpots();
+  const set = new Set(Object.keys(PROVINCES));
+  spots.forEach((s) => s.province && set.add(s.province));
+  const sel = $("#fProvince");
+  const cur = sel.value;
+  sel.innerHTML =
+    '<option value="">请选择省份</option>' +
+    Array.from(set).map((p) => '<option value="' + esc(p) + '">' + esc(p) + "</option>").join("");
+  sel.value = set.has(cur) ? cur : "";
+  fillAddCities(sel.value, $("#fCity").value);
+}
+
+function renderPreview() {
+  $("#imgPreview").innerHTML = add.picked
+    .map(
+      (src, i) =>
+        '<div class="img-item">' +
+        '<img src="' + src + '" alt="预览图 ' + (i + 1) + '">' +
+        (i === 0 ? '<span class="cover-tag">封面</span>' : "") +
+        '<button type="button" class="del" data-i="' + i + '" aria-label="移除">×</button>' +
+        "</div>"
+    )
+    .join("");
+}
+
+function syncQuickTags() {
+  const cur = parseTags($("#fTags").value);
+  $$(".quick-tag").forEach((b) => b.classList.toggle("on", cur.includes(b.dataset.tag)));
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("读取失败"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("无法解析图片"));
+      img.onload = () => {
+        try {
+          const maxSide = 1280;
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.72));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function bindAdd() {
+  refreshAddSelects();
+
+  $("#fProvince").addEventListener("change", (e) => {
+    fillAddCities(e.target.value, "");
+  });
+
+  /* 快捷标签 */
+  $("#quickTags").innerHTML = COMMON_TAGS.map(
+    (t) => '<button type="button" class="quick-tag" data-tag="' + esc(t) + '">' + esc(t) + "</button>"
+  ).join("");
+
+  $("#quickTags").addEventListener("click", (e) => {
+    const btn = e.target.closest(".quick-tag");
+    if (!btn) return;
+    const tag = btn.dataset.tag;
+    const cur = parseTags($("#fTags").value);
+    if (cur.includes(tag)) {
+      $("#fTags").value = cur.filter((t) => t !== tag).join(",");
+    } else {
+      if (cur.length >= 6) return toast("最多 6 个风格标签");
+      cur.push(tag);
+      $("#fTags").value = cur.join(",");
+    }
+    syncQuickTags();
+  });
+  $("#fTags").addEventListener("input", syncQuickTags);
+
+  /* 图片：相册与现拍共用同一套处理 */
+  async function handleFiles(input) {
+    const files = Array.from(input.files || []);
+    input.value = "";
+    if (!files.length) return;
+
+    const room = 6 - add.picked.length;
+    if (room <= 0) return toast("最多上传 6 张图片，可先移除一张");
+    if (files.length > room) toast("最多 6 张，已只保留前 " + room + " 张");
+
+    for (const file of files.slice(0, room)) {
+      if (!file.type.startsWith("image/")) {
+        toast("已跳过非图片文件：" + file.name);
+        continue;
+      }
+      try {
+        add.picked.push(await compressImage(file));
+      } catch (err) {
+        toast("图片处理失败：" + file.name);
+      }
+    }
+    renderPreview();
+  }
+
+  ["#fImages", "#fImagesShot"].forEach((sel) => {
+    const input = $(sel);
+    if (input) input.addEventListener("change", () => handleFiles(input));
+  });
+
+  $("#imgPreview").addEventListener("click", (e) => {
+    const btn = e.target.closest(".del");
+    if (!btn) return;
+    add.picked.splice(Number(btn.dataset.i), 1);
+    renderPreview();
+  });
+
+  /* 地图选点 */
+  function setCoord(lng, lat) {
+    $("#fLng").value = Number(lng).toFixed(6);
+    $("#fLat").value = Number(lat).toFixed(6);
+    if (add.pickMap && add.pickMarker) {
+      const pos = toDisplay(lng, lat);
+      add.pickMarker.setLatLng(pos);
+      add.pickMap.setView(pos, 15);
+    }
+  }
+
+  $("#pickToggle").addEventListener("click", () => {
+    const wrap = $("#pickWrap");
+    const hidden = wrap.style.display === "none" || !wrap.style.display;
+
+    if (hidden) {
+      if (typeof L === "undefined") return toast("地图组件未加载（需要联网）");
+      wrap.style.display = "block";
+      $("#pickToggle").textContent = "收起地图选点";      if (!add.pickMap) {
+        const hasInput = isNum($("#fLng").value) && isNum($("#fLat").value);
+        const lng = hasInput ? Number($("#fLng").value) : 104.06;
+        const lat = hasInput ? Number($("#fLat").value) : 30.66;
+        const start = toDisplay(lng, lat);
+        add.pickMap = L.map("pickMap", { scrollWheelZoom: true }).setView(start, hasInput ? 14 : 4);
+        makeBase(activeBase).addTo(add.pickMap);
+        add.pickMarker = L.marker(start, { icon: pinIcon("★"), draggable: true }).addTo(add.pickMap);
+        add.pickMarker.on("dragend", () => {
+          const p = add.pickMarker.getLatLng();
+          const w = fromDisplay(p.lng, p.lat);
+          $("#fLng").value = w[0].toFixed(6);
+          $("#fLat").value = w[1].toFixed(6);
+        });
+        add.pickMap.on("click", (ev) => {
+          const w = fromDisplay(ev.latlng.lng, ev.latlng.lat);
+          setCoord(w[0], w[1]);
+          toast("已选取坐标：" + $("#fLng").value + ", " + $("#fLat").value);
+        });
+      }
+      setTimeout(() => add.pickMap && add.pickMap.invalidateSize(), 120);
+    } else {
+      wrap.style.display = "none";
+      $("#pickToggle").textContent = "在地图上标个点（可选）";
+    }
+  });
+
+  $("#btnGeo").addEventListener("click", () => {
+    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
+    toast("正在获取当前位置…", 1600);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoord(pos.coords.longitude, pos.coords.latitude);
+        toast("已填入当前位置（WGS84）");
+      },
+      (err) => {
+        toast("定位失败：" + (err.message || "浏览器未授权"));
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  });
+
+  ["#fLng", "#fLat"].forEach((sel) => {
+    $(sel).addEventListener("change", () => {
+      const lng = $("#fLng").value;
+      const lat = $("#fLat").value;
+      if (isNum(lng) && isNum(lat) && add.pickMarker) {
+        const pos = toDisplay(lng, lat);
+        add.pickMarker.setLatLng(pos);
+        add.pickMap.setView(pos);
+      }
+    });
+  });
+
+  /* 提交 */
+  const form = $("#spotForm");
+
+  function markError(input, on) {
+    if (input) input.classList.toggle("is-error", !!on);
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const title = $("#fTitle").value.trim();
+    const province = $("#fProvince").value;
+    const city = $("#fCity").value;
+    const address = $("#fAddress").value.trim();
+    const desc = $("#fDesc").value.trim();
+
+    let firstBad = null;
+    [
+      [$("#fTitle"), !title],
+      [$("#fProvince"), !province],
+      [$("#fCity"), !city],
+      [$("#fAddress"), !address],
+      [$("#fDesc"), !desc]
+    ].forEach(([el, bad]) => {
+      markError(el, bad);
+      if (bad && !firstBad) firstBad = el;
+    });
+
+    if (firstBad) {
+      firstBad.focus();
+      firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
+      return toast("请先填好名称、省市、地点和机位描述");
+    }
+
+    const lngRaw = $("#fLng").value.trim();
+    const latRaw = $("#fLat").value.trim();
+    if ((lngRaw && !isNum(lngRaw)) || (latRaw && !isNum(latRaw))) {
+      return toast("经纬度需要是数字，例如 113.326 / 23.111");
+    }
+
+    const spots = getSpots();
+    const spot = {
+      id: "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      title: title,
+      province: province,
+      city: city,
+      address: address,
+      lng: lngRaw ? Number(lngRaw) : 0,
+      lat: latRaw ? Number(latRaw) : 0,
+      tags: parseTags($("#fTags").value),
+      desc: desc,
+      tips: $("#fTips").value.trim(),
+      bestTime: $("#fBestTime").value.trim(),
+      panorama: $("#fPanorama").value.trim(),
+      heat: 60,
+      views: 0,
+      likes: 0,
+      images: add.picked.slice(),
+      createdAt: new Date().toISOString()
+    };
+
+    spots.unshift(spot);
+    if (!saveSpots(spots)) return;
+
+    form.reset();
+    add.picked.length = 0;
+    renderPreview();
+    refreshAddSelects();
+    syncQuickTags();
+    $$(".is-error").forEach((el) => el.classList.remove("is-error"));
+
+    location.hash = spotLink(spot.id);
+    toast("机位已发布", 1600);
+
+    if (cloudOn()) {
+      toast("正在同步到云端…", 2000);
+      cloudSaveSpot(spot)
+        .then((images) => {
+          spot.images = images;
+          const list = getSpots().map((s) => (String(s.id) === String(spot.id) ? spot : s));
+          saveSpots(list);
+          cloudState = "on";
+          toast("已同步到云端，所有人都能看到");
+        })
+        .catch(() => {
+          cloudState = "error";
+          toast("云端同步失败，这条暂时只存在本机");
+        });
+    }
+  });
+
+  form.addEventListener("input", (e) => {
+    if (e.target.classList && e.target.classList.contains("is-error")) markError(e.target, false);
+  });
+
+  $("#resetForm").addEventListener("click", () => {
+    setTimeout(() => {
+      add.picked.length = 0;
+      renderPreview();
+      refreshAddSelects();
+      syncQuickTags();
+      $$(".is-error").forEach((el) => el.classList.remove("is-error"));
+      toast("已清空表单");
+    }, 0);
+  });
+}
+
+function ensureAdd() {
+  if (!add.inited) {
+    add.inited = true;
+    bindAdd();
+  } else {
+    refreshAddSelects();
+    syncQuickTags();
+  }
+  if (add.pickMap) setTimeout(() => add.pickMap.invalidateSize(), 120);
+}
+
+/* ---------- 7. 路由 ---------- */
+/* ---------- 9. 云同步（Supabase 免费版；没填配置就只存本机） ---------- */
+const CLOUD = {
+  url: "https://legqogxpmvajseftudzk.supabase.co",
+  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlZ3FvZ3hwbXZhanNlZnR1ZHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUxNjQyNjYsImV4cCI6MjExMDc0MDI2Nn0.Oq2c215XkJzA25If-0WrA-lOgtn40rdvla3mw8K6r0Y",
+  table: "spots",
+  bucket: "spot-images"
+};
+
+let cloudState = "off"; // off / on / error
+
+function cloudOn() {
+  return !!(CLOUD.url && CLOUD.key && /^https:\/\//i.test(CLOUD.url));
+}
+
+function cloudBase() {
+  return CLOUD.url.replace(/\/+$/, "");
+}
+
+function cloudHeaders(extra) {
+  return Object.assign(
+    { apikey: CLOUD.key, Authorization: "Bearer " + CLOUD.key, "Content-Type": "application/json" },
+    extra || {}
+  );
+}
+
+function toRow(s) {
+  return {
+    id: String(s.id),
+    title: s.title || "",
+    province: s.province || "",
+    city: s.city || "",
+    address: s.address || "",
+    lng: Number(s.lng) || 0,
+    lat: Number(s.lat) || 0,
+    tags: s.tags || [],
+    descr: s.desc || "",
+    tips: s.tips || "",
+    best_time: s.bestTime || "",
+    panorama: s.panorama || "",
+    images: s.images || [],
+    heat: Number(s.heat) || 60,
+    views: Number(s.views) || 0,
+    likes: Number(s.likes) || 0,
+    created_at: s.createdAt || new Date().toISOString()
+  };
+}
+
+function fromRow(r) {
+  return {
+    id: String(r.id),
+    title: r.title || "",
+    province: r.province || "",
+    city: r.city || "",
+    address: r.address || "",
+    lng: Number(r.lng) || 0,
+    lat: Number(r.lat) || 0,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    desc: r.descr || "",
+    tips: r.tips || "",
+    bestTime: r.best_time || "",
+    panorama: r.panorama || "",
+    images: Array.isArray(r.images) ? r.images : [],
+    heat: Number(r.heat) || 60,
+    views: Number(r.views) || 0,
+    likes: Number(r.likes) || 0,
+    createdAt: r.created_at || new Date().toISOString()
+  };
+}
+
+async function cloudFetchSpots() {
+  const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table + "?select=*&order=created_at.desc", {
+    headers: cloudHeaders()
+  });
+  if (!res.ok) throw new Error("读取失败 " + res.status);
+  const rows = await res.json();
+  return rows.filter((r) => !/^probe-/.test(String(r.id))).map(fromRow);
+}
+
+function dataUrlToBlob(dataUrl) {
+  const parts = String(dataUrl).split(",");
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
+  const bin = atob(parts[1] || "");
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+/* 把 dataURL 图片传进 Supabase Storage，返回公开链接 */
+async function cloudUploadImage(dataUrl, spotId, idx) {
+  if (/^https?:\/\//i.test(dataUrl)) return dataUrl;
+  const path = spotId + "-" + idx + "-" + Date.now() + ".jpg";
+  const res = await fetch(cloudBase() + "/storage/v1/object/" + CLOUD.bucket + "/" + path, {
+    method: "POST",
+    headers: {
+      apikey: CLOUD.key,
+      Authorization: "Bearer " + CLOUD.key,
+      "Content-Type": "image/jpeg",
+      "x-upsert": "true"
+    },
+    body: dataUrlToBlob(dataUrl)
+  });
+  if (!res.ok) throw new Error("图片上传失败 " + res.status);
+  return cloudBase() + "/storage/v1/object/public/" + CLOUD.bucket + "/" + path;
+}
+
+/* 发布后把这一条传到云端；返回替换后的图片链接数组 */
+async function cloudSaveSpot(spot) {
+  const images = [];
+  for (let i = 0; i < (spot.images || []).length; i++) {
+    images.push(await cloudUploadImage(spot.images[i], spot.id, i));
+  }
+  const row = toRow(Object.assign({}, spot, { images: images }));
+  const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table, {
+    method: "POST",
+    headers: cloudHeaders({ Prefer: "resolution=merge-duplicates" }),
+    body: JSON.stringify(row)
+  });
+  if (!res.ok) throw new Error("写入失败 " + res.status);
+  return images;
+}
+
+/* 启动时把云端数据拉到本地（本地独有的也保留，避免还没同步成功的丢失） */
+async function cloudSync() {
+  if (!cloudOn()) return false;
+  try {
+    const remote = await cloudFetchSpots();
+    const local = getSpots();
+    const map = new Map();
+    remote.forEach((s) => map.set(String(s.id), s));
+    local.forEach((s) => {
+      if (!map.has(String(s.id))) map.set(String(s.id), s);
+    });
+    const merged = Array.from(map.values()).sort((a, b) =>
+      String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+    );
+    saveSpots(merged);
+    cloudState = "on";
+    return true;
+  } catch (e) {
+    cloudState = "error";
+    return false;
+  }
+}
+
+function cloudHintText() {
+  if (!cloudOn()) return "当前是本机模式：机位只存在这台设备上";
+  if (cloudState === "error") return "云端连接失败：先按本机保存，稍后自动重试";
+  return "云端已连接：新发布的机位所有人可见";
+}
+
+function parseHash() {
+  const raw = String(location.hash || "").replace(/^#/, "");
+  const parts = raw.split("/").filter(Boolean);
+  if (parts[0] === "spot" && parts[1]) {
+    return { view: "detail", id: decodeURIComponent(parts[1]) };
+  }
+  if (parts[0] === "new") return { view: "add" };
+  return { view: "home" };
+}
+
+function route() {
+  const r = parseHash();
+
+  $$(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + r.view));
+
+  if (r.view === "home") {
+    ensureHome();
+    document.title = "水机位 · 全国摄影机位地图";
+    setTimeout(() => home.map && home.map.invalidateSize(), 90);
+  } else if (r.view === "detail") {
+    openDetail(r.id);
+  } else {
+    ensureAdd();
+    document.title = "发布机位 · 水机位";
+  }
+
+  window.scrollTo(0, 0);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  /* 旧版自带的 8 个示例机位（id 为 1~8），一次性清掉 */
+  try {
+    if (!LS.get("jiweiji.seedremoved.v1")) {
+      const kept = getSpots().filter((s) => !/^[1-8]$/.test(String(s.id)));
+      saveSpots(kept);
+      LS.set("jiweiji.seedremoved.v1", "1");
+    }
+  } catch (e) {}
+
+  if (!location.hash) {
+    try {
+      history.replaceState(null, "", "#/");
+    } catch (e) {
+      location.hash = "#/";
+    }
+  }
+  route();
+  window.addEventListener("hashchange", route);
+
+  if (cloudOn()) {
+    cloudSync().then((changed) => {
+      if (changed) route();
+    });
+  }
+});
+
+</script>
+</body>
+</html>
