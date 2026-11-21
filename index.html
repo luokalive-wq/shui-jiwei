@@ -1388,7 +1388,6 @@ label.upload-box {
             <p class="subtitle">一水为爱发电<span class="stat" id="statText"></span></p>
           </div>
         </div>
-        <a href="#/mine" class="btn btn-ghost btn-sm" id="meBtn">我的</a>
         <a href="#/new" class="btn btn-primary btn-sm">＋ 发布机位</a>
       </div>
     </header>
@@ -1716,6 +1715,12 @@ label.upload-box {
 </div>
 
 <div id="toast" class="toast"></div>
+
+<!-- 右下角「我的」悬浮入口（手机端像 App 的底部入口） -->
+<a href="#/mine" id="dockMe" class="dock-me" aria-label="我的">
+  <span class="dock-dot" id="dockFace">我</span>
+  <em>我的</em>
+</a>
 
 <script src="https://fastly.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -3792,10 +3797,19 @@ function cloudHintText() {
 
 const mine = { inited: false, timer: null };
 
+/* 右下角入口的头像：登录后显示邮箱首字母 */
+function paintDock() {
+  const face = $("#dockFace");
+  if (!face) return;
+  const me = getUser();
+  face.textContent = me ? (String(me.email).charAt(0) || "我").toUpperCase() : "我";
+}
+
 function renderMine() {
   const me = getUser();
   const loginBox = $("#mineLogin");
   const loggedBox = $("#mineLogged");
+  paintDock();
   if (!me) {
     loginBox.style.display = "block";
     loggedBox.style.display = "none";
@@ -3913,6 +3927,8 @@ function route() {
   const r = parseHash();
 
   $$(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + r.view));
+  const dock = $("#dockMe");
+  if (dock) dock.style.display = r.view === "mine" ? "none" : "flex";
 
   if (r.view === "home") {
     ensureHome();
@@ -3934,6 +3950,7 @@ function route() {
 document.addEventListener("DOMContentLoaded", () => {
   /* 从邮件登录链接回来：先把 token 收进来 */
   absorbHashToken();
+  paintDock();
   /* 旧版自带的 8 个示例机位（id 为 1~8），一次性清掉 */
   try {
     if (!LS.get("jiweiji.seedremoved.v1")) {
