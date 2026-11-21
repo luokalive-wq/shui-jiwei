@@ -1,0 +1,86 @@
+{
+ "updatedAt": "2026-11-21T18:58:37Z",
+ "spots": [
+  {
+   "id": "smwqmuceq6m8",
+   "title": "蓝湖",
+   "province": "",
+   "city": "",
+   "address": "南山镇-在星星充电充电站（鑫辰能源浮日蓝矿咖啡）附近",
+   "lng": 0,
+   "lat": 0,
+   "tags": [],
+   "desc": "南山镇-在星星充电充电站（鑫辰能源浮日蓝矿咖啡）附近就在这个咖啡厅门口",
+   "tips": "",
+   "bestTime": "全天",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwqmuceq6m8-0.jpg",
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwqmuceq6m8-1.jpg"
+   ],
+   "heat": 0,
+   "views": 0,
+   "likes": 0,
+   "author": "一水",
+   "authorId": "umwqmucepzt88",
+   "createdAt": "2026-11-21T16:38:52.754+00:00",
+   "mine": false
+  },
+  {
+   "id": "smwowad1qyha",
+   "title": "一番街",
+   "province": "广东",
+   "city": "佛山",
+   "address": "BGM食番町招商中心",
+   "lng": 113.859097,
+   "lat": 24.764149,
+   "tags": [
+    "日系",
+    "电影感"
+   ],
+   "desc": "直接打车到具体地址就行",
+   "tips": "",
+   "bestTime": "",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwowad1qyha-0.jpg",
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwowad1qyha-1.jpg"
+   ],
+   "heat": 60,
+   "views": 6,
+   "likes": 1,
+   "author": "",
+   "authorId": "",
+   "createdAt": "2026-11-20T11:27:44.27+00:00",
+   "mine": false
+  },
+  {
+   "id": "smwovr7fxur5",
+   "title": "番禺稻田",
+   "province": "广东",
+   "city": "广州",
+   "address": "番禺区海涌路海傍村段",
+   "lng": 0,
+   "lat": 0,
+   "tags": [
+    "稻田",
+    "莉莉周"
+   ],
+   "desc": "但不过拍摄时间不稳定，有时候他们可能没有中这个，自己去那边看看就知道了，给的都是具体的位置，不要打扰别人收菜就行",
+   "tips": "",
+   "bestTime": "",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwovr7fxur5-0.jpg",
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwovr7fxur5-1.jpg"
+   ],
+   "heat": 60,
+   "views": 2,
+   "likes": 0,
+   "author": "",
+   "authorId": "",
+   "createdAt": "2026-11-20T11:12:50.541+00:00",
+   "mine": false
+  }
+ ]
+}
