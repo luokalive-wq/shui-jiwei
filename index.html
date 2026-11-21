@@ -1661,7 +1661,7 @@ label.upload-box {
     <main class="container">
       <form id="spotForm" class="form-card" novalidate>
         <div class="field">
-          <label for="fTitle">机位名称<span class="hint">只有这一项必填，其余都可以空着</span></label>
+          <label for="fTitle">机位名称<span class="hint">必填；名称、地点、精准坐标、至少 1 张图都要有</span></label>
           <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：低涌稻田" maxlength="30" required>
         </div>
 
@@ -1674,16 +1674,17 @@ label.upload-box {
           <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
           <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 低涌稻田" maxlength="60" required>
           <div class="mini-tools">
+            <button id="btnGeo" class="chip-btn on" type="button">📍 用我当前位置（最准）</button>
             <button id="pickToggle" class="chip-btn" type="button">在高德地图上选点</button>
-            <button id="btnGeo" class="chip-btn" type="button">用我当前位置</button>
           </div>
+          <p class="form-tip" id="coordLine">坐标必填：站在机位上点「用我当前位置」最准，像微信发定位一样直接拿到经纬度。</p>
           <div class="pick-wrap" id="pickWrap" style="display:none">
             <div id="pickMap"></div>
             <div class="form-row" style="margin-top:10px">
               <input id="fLng" type="text" inputmode="decimal" placeholder="经度（自动填充）">
               <input id="fLat" type="text" inputmode="decimal" placeholder="纬度（自动填充）">
             </div>
-            <p class="form-tip">点地图任意位置即可自动填入；不填也能发布，导航会按上面填的地点名去搜。</p>
+            <p class="form-tip">点地图任意位置即可自动填入经纬度。没有坐标不能发布。</p>
           </div>
         </div>
 
@@ -2257,6 +2258,23 @@ function geocode(text) {
       return v;
     })
     .catch(() => null);
+}
+
+/* 反向查地名：给个坐标，返回附近的地名（像微信发定位那样） */
+function reverseGeocode(lng, lat) {
+  const url =
+    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=zh-CN&zoom=18&lon=" +
+    Number(lng).toFixed(6) + "&lat=" + Number(lat).toFixed(6);
+  return fetch(url, { headers: { Accept: "application/json" } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      if (!j) return "";
+      const a = j.address || {};
+      const parts = [a.city || a.town || a.county, a.suburb || a.village || a.neighbourhood, a.road, a.house_number]
+        .filter(Boolean);
+      return parts.join("") || j.display_name || "";
+    })
+    .catch(() => "");
 }
 
 function cardHtml(spot) {
@@ -3305,9 +3323,16 @@ function bindAdd() {
   });
 
   /* 地图选点 */
-  function setCoord(lng, lat) {
+  function setCoord(lng, lat, accuracy) {
     $("#fLng").value = Number(lng).toFixed(6);
     $("#fLat").value = Number(lat).toFixed(6);
+    const line = $("#coordLine");
+    if (line) {
+      line.classList.remove("is-error");
+      line.textContent =
+        "已取到坐标：" + $("#fLng").value + ", " + $("#fLat").value +
+        (accuracy ? "（定位精度约 " + Math.round(accuracy) + " 米）" : "");
+    }
     if (add.pickMap && add.pickMarker) {
       const pos = toDisplay(lng, lat);
       add.pickMarker.setLatLng(pos);
@@ -3364,17 +3389,31 @@ function bindAdd() {
   });
 
   $("#btnGeo").addEventListener("click", () => {
-    if (!navigator.geolocation) return toast("当前浏览器不支持定位");
-    toast("正在获取当前位置…", 1600);
+    if (!navigator.geolocation) return toast("当前浏览器不支持定位，请用地图选点");
+    toast("正在获取精准定位，第一次会弹权限，点允许…", 2600);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoord(pos.coords.longitude, pos.coords.latitude);
-        toast("已填入当前位置（WGS84）");
+        setCoord(pos.coords.longitude, pos.coords.latitude, pos.coords.accuracy);
+        const acc = pos.coords.accuracy;
+        if (acc && acc > 300) {
+          toast("定位精度约 " + Math.round(acc) + " 米，可能不够准；到空旷处再点一次");
+        } else {
+          toast("已取到精准坐标，可直接发布");
+        }
+        /* 像微信发定位一样，顺便把地名补上 */
+        if (!$("#fAddress").value.trim()) {
+          reverseGeocode(pos.coords.longitude, pos.coords.latitude).then((name) => {
+            if (name && !$("#fAddress").value.trim()) {
+              $("#fAddress").value = name;
+              toast("已自动填上附近地名：" + name, 2200);
+            }
+          });
+        }
       },
       (err) => {
-        toast("定位失败：" + (err.message || "浏览器未授权"));
+        toast("定位失败：" + (err.message || "浏览器未授权") + "，可以改用地图选点");
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
 
@@ -3468,7 +3507,14 @@ function bindAdd() {
 
     const lngRaw = $("#fLng").value.trim();
     const latRaw = $("#fLat").value.trim();
-    if ((lngRaw && !isNum(lngRaw)) || (latRaw && !isNum(latRaw))) {
+    if (!lngRaw || !latRaw) {
+      const line = $("#coordLine");
+      if (line) line.classList.add("is-error");
+      const geoBtn = $("#btnGeo");
+      if (geoBtn) geoBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+      return toast("坐标必须要有：点「📍 用我当前位置」或在地图上选点");
+    }
+    if (!isNum(lngRaw) || !isNum(latRaw)) {
       return toast("经纬度需要是数字，例如 113.326 / 23.111");
     }
 
