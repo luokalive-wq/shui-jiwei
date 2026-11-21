@@ -1455,18 +1455,26 @@ label.upload-box {
     <main class="container">
       <div id="mineLogin" class="form-card" style="display:none">
         <div class="field">
-          <label for="fNick">先留个名字<span class="hint">发布机上会显示这个名字</span></label>
-          <input id="fNick" type="text" placeholder="例：一水" maxlength="20">
+          <label for="fEmail">QQ 邮箱<span class="hint">收验证码用，也会作为发布人显示</span></label>
+          <input id="fEmail" type="email" placeholder="例：12345678@qq.com" autocomplete="email">
         </div>
         <div class="form-actions">
-          <button id="saveNick" class="btn btn-primary" type="button">进入</button>
+          <button id="sendCode" class="btn btn-secondary" type="button">发送验证码</button>
         </div>
+        <div class="field">
+          <label for="fCode">6 位验证码<span class="hint">看邮件正文里的数字</span></label>
+          <input id="fCode" type="text" inputmode="numeric" maxlength="6" placeholder="邮件里的 6 位数字">
+        </div>
+        <div class="form-actions">
+          <button id="doLogin" class="btn btn-primary" type="button">登录 / 注册</button>
+        </div>
+        <p class="form-tip" id="loginTip">第一次用这个邮箱会自动创建账号。</p>
       </div>
 
       <div id="mineLogged" style="display:none">
         <p class="form-tip">
           当前身份：<strong id="mineName"></strong>
-          <button id="logoutBtn" class="link-btn" type="button">换个名字</button>
+          <button id="logoutBtn" class="link-btn" type="button">退出登录</button>
         </p>
         <div id="mineList" class="spot-list"></div>
       </div>
@@ -1558,6 +1566,30 @@ label.upload-box {
           <button id="copyBaiduLinkBtn" class="btn btn-ghost" type="button">复制百度地图链接</button>
           <button id="copyLinkBtn" class="btn btn-ghost" type="button">复制页面链接</button>
         </div>
+
+        <div class="content-block" id="creatorBlock" style="display:none">
+          <h3>创作者管理</h3>
+          <p class="form-tip">改完点保存，所有人立刻看到新的名称、地址和位置。</p>
+          <div class="field">
+            <label for="cTitle">机位名称</label>
+            <input id="cTitle" type="text" maxlength="40">
+          </div>
+          <div class="field">
+            <label for="cAddress">地点 / 地址</label>
+            <input id="cAddress" type="text" maxlength="60">
+          </div>
+          <div class="field">
+            <label for="cDesc">机位说明</label>
+            <textarea id="cDesc" rows="3"></textarea>
+          </div>
+          <p class="form-tip" id="cCoord"></p>
+          <div class="form-actions">
+            <button id="cSave" class="btn btn-primary" type="button">保存修改</button>
+            <button id="cMove" class="btn btn-secondary" type="button">地图上挪位置</button>
+            <button id="cGeo" class="btn btn-secondary" type="button">按地址重新定位</button>
+            <button id="cDel" class="btn btn-ghost" type="button">删除这条机位</button>
+          </div>
+        </div>
       </article>
 
       <section id="relatedSection">
@@ -1596,9 +1628,9 @@ label.upload-box {
           <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：低涌稻田" maxlength="30" required>
         </div>
 
-        <div class="field">
-          <label for="fAuthor">发布人<span class="hint">必填，会显示在这个机位上</span></label>
-          <input id="fAuthor" type="text" placeholder="你的名字，例：一水" maxlength="20" required>
+        <div class="field" id="authorField">
+          <label>发布人<span class="hint">取自登录邮箱</span></label>
+          <p class="form-tip" id="authorLine" style="margin:0">还没登录，<a href="#/mine">点这里用邮箱登录</a></p>
         </div>
 
         <div class="field">
@@ -1836,23 +1868,99 @@ const KEYS = {
   user: "jiweiji.user.v1"
 };
 
-/* 本机身份：名字 + 一个随机 id（用来区分同名的人） */
-function getUser() {
-  const raw = LS.get(KEYS.user);
+/* 邮箱登录身份：验证码登录后保存会话，作者名默认取邮箱前缀 */
+const AUTH_KEY = "jiweiji.auth.v1";
+
+function getSession() {
+  const raw = LS.get(AUTH_KEY);
   if (!raw) return null;
   try {
-    const u = JSON.parse(raw);
-    if (u && u.name) return u;
+    const s = JSON.parse(raw);
+    if (s && s.email && s.uid) return s;
   } catch (e) {}
   return null;
 }
 
+function saveSession(s) {
+  LS.set(AUTH_KEY, JSON.stringify(s));
+}
+
+function getUser() {
+  const s = getSession();
+  if (!s) return null;
+  return {
+    name: s.name || String(s.email).split("@")[0],
+    uid: s.uid,
+    email: s.email,
+    creator: !!s.creator
+  };
+}
+
 function setUser(name) {
   const prev = getUser();
-  const uid = (prev && prev.uid) || "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const u = { name: String(name || "").trim(), uid: uid };
-  LS.set(KEYS.user, JSON.stringify(u));
-  return u;
+  const next = {
+    email: (prev && prev.email) || "",
+    uid: (prev && prev.uid) || "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: String(name || "").trim() || ((prev && prev.name) || ""),
+    creator: !!(prev && prev.creator)
+  };
+  saveSession(next);
+  return next;
+}
+
+function clearUser() {
+  LS.set(AUTH_KEY, "");
+}
+
+/* 发邮箱验证码（Supabase Auth，邮件里是 6 位数字） */
+async function authSendOtp(email) {
+  const res = await fetch(cloudBase() + "/auth/v1/otp", {
+    method: "POST",
+    headers: { apikey: CLOUD.key, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email, create_user: true })
+  });
+  if (!res.ok) throw new Error("验证码发送失败 " + res.status + "：" + (await res.text()).slice(0, 120));
+}
+
+/* 用验证码换登录会话 */
+async function authVerifyOtp(email, token) {
+  const res = await fetch(cloudBase() + "/auth/v1/verify", {
+    method: "POST",
+    headers: { apikey: CLOUD.key, "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "email", email: email, token: token })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token || !body.user) {
+    throw new Error("验证码不对或已过期，请重新获取");
+  }
+  const s = {
+    email: body.user.email || email,
+    uid: body.user.id,
+    access: body.access_token,
+    refresh: body.refresh_token || "",
+    name: String(body.user.email || email).split("@")[0],
+    creator: false
+  };
+  saveSession(s);
+  const creator = await checkCreator(s.email);
+  s.creator = creator;
+  saveSession(s);
+  return s;
+}
+
+/* 查这个邮箱是不是创作者（有删除/修改权限） */
+async function checkCreator(email) {
+  try {
+    const res = await fetch(cloudBase() + "/rest/v1/rpc/is_creator", {
+      method: "POST",
+      headers: cloudHeaders(),
+      body: JSON.stringify({ p_email: email })
+    });
+    if (!res.ok) return false;
+    return (await res.json()) === true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function seedSpots() {
@@ -1979,7 +2087,13 @@ function areaText(spot) {
 /* 导航用的地点名：优先用发布时填的地址，其次用省市 + 机位名兜底 */
 function spotAddress(spot) {
   const addr = String(spot.address || "").trim();
-  if (addr) return addr;
+  const region = [spot.province, spot.city].filter(Boolean).join("");
+  if (addr) {
+    if (region && addr.indexOf(region) === -1 && !(spot.city && addr.indexOf(spot.city) > -1)) {
+      return region + addr;
+    }
+    return addr;
+  }
   return [spot.province, spot.city, spot.title].filter(Boolean).join(" ");
 }
 
@@ -2227,6 +2341,31 @@ function navUrl(spot, kind) {
   return hasGeo
     ? "https://www.google.com/maps/search/?api=1&query=" + spot.lat + "," + spot.lng
     : "https://www.google.com/maps/search/?api=1&query=" + q;
+}
+
+/* 点导航：没坐标就先按地址查一次，查到就回写本地 + 云端，再打开地图 */
+async function openNav(spot, kind) {
+  if (!(Number(spot.lng) && Number(spot.lat))) {
+    toast("正在按地址定位…", 2000);
+    const p = await geocode(spotAddress(spot));
+    if (p) {
+      spot.lng = p[0];
+      spot.lat = p[1];
+      const list = getSpots().map((s) => (String(s.id) === String(spot.id) ? Object.assign({}, s, { lng: p[0], lat: p[1] }) : s));
+      saveSpots(list);
+      cloudPatchSpot(spot.id, { lng: p[0], lat: p[1] }).catch(() => {});
+      if (detail.spot && String(detail.spot.id) === String(spot.id)) {
+        detail.spot.lng = p[0];
+        detail.spot.lat = p[1];
+        drawDetailMap(detail.spot);
+      }
+      toast("已定位到：" + spotAddress(spot), 1600);
+    } else {
+      toast("这个地名没查到精确坐标，按地名去搜（可能要多选一下）");
+    }
+  }
+  if (kind === "baidu") return openBaidu(spot);
+  return openExternal(navUrl(spot, kind));
 }
 
 function openExternal(url) {
@@ -2538,11 +2677,18 @@ function detailPaint() {
   const img = $("#carImg");
   if (!img) return;
   img.style.opacity = "0";
+  const next = detail.imgs[(detail.idx + 1) % detail.imgs.length];
+  if (next) {
+    const pre = new Image();
+    pre.src = next;
+  }
   setTimeout(() => {
     img.src = detail.imgs[detail.idx];
     img.style.opacity = "1";
-  }, 100);
+  }, 60);
   $$(".carousel-dots i").forEach((d, i) => d.classList.toggle("on", i === detail.idx));
+  const count = $("#carCount");
+  if (count) count.textContent = detail.idx + 1 + " / " + detail.imgs.length;
 }
 
 function detailStep(delta) {
@@ -2575,9 +2721,9 @@ function paintFav() {
 }
 
 function bindDetail() {
-  $("#btnBaidu").addEventListener("click", () => detail.spot && openBaidu(detail.spot));
-  $("#btnAmap").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "amap")));
-  $("#btnGoogle").addEventListener("click", () => detail.spot && openExternal(navUrl(detail.spot, "google")));
+  $("#btnBaidu").addEventListener("click", () => detail.spot && openNav(detail.spot, "baidu"));
+  $("#btnAmap").addEventListener("click", () => detail.spot && openNav(detail.spot, "amap"));
+  $("#btnGoogle").addEventListener("click", () => detail.spot && openNav(detail.spot, "google"));
 
   const likeBtn = $("#likeBtn");
   if (likeBtn) {
@@ -2652,6 +2798,119 @@ function bindDetail() {
     if (e.key === "ArrowLeft") detailStep(-1);
     if (e.key === "ArrowRight") detailStep(1);
   });
+
+  /* 创作者管理：改名 / 改地址 / 挪位置 / 删除 */
+  const c = { lng: 0, lat: 0, moveMode: false };
+
+  function paintCoordLine() {
+    $("#cCoord").textContent = c.lng
+      ? "当前坐标：" + Number(c.lng).toFixed(6) + ", " + Number(c.lat).toFixed(6)
+      : "当前没有坐标，导航只能按地名搜。建议点「地图上挪位置」。";
+  }
+
+  $("#cSave").addEventListener("click", async () => {
+    const s = detail.spot;
+    if (!s) return;
+    const fields = {
+      title: $("#cTitle").value.trim() || s.title,
+      address: $("#cAddress").value.trim() || s.address,
+      descr: $("#cDesc").value.trim(),
+      lng: c.lng || null,
+      lat: c.lat || null
+    };
+    const spots = getSpots().map((x) =>
+      String(x.id) === String(s.id)
+        ? Object.assign({}, x, {
+            title: fields.title,
+            address: fields.address,
+            desc: fields.descr,
+            lng: c.lng || 0,
+            lat: c.lat || 0
+          })
+        : x
+    );
+    saveSpots(spots);
+    try {
+      await cloudPatchSpot(s.id, fields);
+      toast("已保存，所有人都会看到");
+    } catch (e) {
+      toast("本地已改，云端保存失败：" + e.message);
+    }
+    openDetail(s.id);
+  });
+
+  $("#cGeo").addEventListener("click", async () => {
+    const addr = $("#cAddress").value.trim();
+    if (!addr) return toast("先填地址");
+    toast("正在按地址定位…", 1600);
+    const p = await geocode(addr);
+    if (!p) return toast("这个地址没查到坐标，试试换个更具体的写法");
+    c.lng = p[0];
+    c.lat = p[1];
+    paintCoordLine();
+    if (detail.spot) {
+      detail.spot.lng = p[0];
+      detail.spot.lat = p[1];
+      drawDetailMap(detail.spot);
+    }
+    toast("已定位：" + addr);
+  });
+
+  $("#cMove").addEventListener("click", async () => {
+    const s = detail.spot;
+    if (!s) return;
+    if (!c.lng || !c.lat) {
+      const p = await geocode($("#cAddress").value.trim() || spotAddress(s));
+      if (p) {
+        c.lng = p[0];
+        c.lat = p[1];
+        paintCoordLine();
+      }
+    }
+    if (!c.lng) return toast("先填地址或按地址定位，再拖地图");
+    if (typeof L === "undefined") return toast("地图组件没加载，需要联网");
+    s.lng = c.lng;
+    s.lat = c.lat;
+    drawDetailMap(s);
+    c.moveMode = true;
+    setTimeout(() => {
+      if (!detail.mini) return;
+      toast("点地图上正确的位置，再点保存修改", 2600);
+      detail.mini.on("click", (ev) => {
+        if (!c.moveMode) return;
+        const w = fromDisplay(ev.latlng.lng, ev.latlng.lat);
+        c.lng = w[0];
+        c.lat = w[1];
+        paintCoordLine();
+        const pos = toDisplay(w[0], w[1]);
+        if (detail.mini) detail.mini.setView(pos, 16);
+      });
+      detail.mini.invalidateSize();
+    }, 200);
+  });
+
+  $("#cDel").addEventListener("click", async () => {
+    const s = detail.spot;
+    if (!s) return;
+    if (!confirm("确定删除「" + s.title + "」？删了就找不回来。")) return;
+    await removeSpot(s.id);
+    detail.spot = null;
+    location.hash = "#/";
+  });
+
+  detail.paintCreator = function (spot) {
+    const me = getUser();
+    const box = $("#creatorBlock");
+    box.style.display = me && me.creator ? "block" : "none";
+    if (!(me && me.creator) || !spot) return;
+    $("#cTitle").value = spot.title || "";
+    $("#cAddress").value = spot.address || "";
+    $("#cDesc").value = spot.desc || "";
+    c.lng = Number(spot.lng) || 0;
+    c.lat = Number(spot.lat) || 0;
+    c.moveMode = false;
+    paintCoordLine();
+  };
 }
 
 function openDetail(id) {
@@ -2712,10 +2971,11 @@ function openDetail(id) {
       "</span><em>" + esc(spot.title) + " · 暂无实景图</em></div></div>";
   } else {
     carousel.innerHTML =
-      '<img id="carImg" class="carousel-img" alt="' + esc(spot.title) + '" src="' + detail.imgs[0] + '">' +
+      '<img id="carImg" class="carousel-img" alt="' + esc(spot.title) + '" src="' + detail.imgs[0] + '" decoding="async">' +
       (detail.imgs.length > 1
         ? '<button type="button" class="carousel-arrow prev" id="carPrev" aria-label="上一张">‹</button>' +
           '<button type="button" class="carousel-arrow next" id="carNext" aria-label="下一张">›</button>' +
+          '<span class="carousel-count" id="carCount">1 / ' + detail.imgs.length + "</span>" +
           '<div class="carousel-dots" id="carDots">' +
           detail.imgs.map((_, i) => '<i data-i="' + i + '" class="' + (i === 0 ? "on" : "") + '"></i>').join("") +
           "</div>"
@@ -2781,6 +3041,7 @@ function openDetail(id) {
     detail.bound = true;
     bindDetail();
   }
+  if (detail.paintCreator) detail.paintCreator(spot);
   paintFav();
 }
 
@@ -2830,7 +3091,7 @@ function compressImage(file) {
       img.onerror = () => reject(new Error("无法解析图片"));
       img.onload = () => {
         try {
-          const maxSide = 1080;
+          const maxSide = 960;
           const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
           const canvas = document.createElement("canvas");
           canvas.width = Math.round(img.width * scale);
@@ -2841,9 +3102,9 @@ function compressImage(file) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           /* 先用 0.6 出图；还是太大就继续降质量，控制单张 200KB 以内 */
-          let quality = 0.6;
+          let quality = 0.55;
           let data = canvas.toDataURL("image/jpeg", quality);
-          while (data.length > 280000 && quality > 0.3) {
+          while (data.length > 200000 && quality > 0.32) {
             quality = Math.round((quality - 0.1) * 100) / 100;
             data = canvas.toDataURL("image/jpeg", quality);
           }
@@ -2862,7 +3123,12 @@ function bindAdd() {
   refreshAddSelects();
 
   const me0 = getUser();
-  if (me0 && me0.name) $("#fAuthor").value = me0.name;
+  const line = $("#authorLine");
+  if (line) {
+    line.innerHTML = me0
+      ? "已登录：" + esc(me0.email) + (me0.creator ? "（创作者）" : "")
+      : '还没登录，<a href="#/mine">点这里用邮箱登录</a>';
+  }
 
   /* 快捷标签 */
   $("#quickTags").innerHTML = COMMON_TAGS.map(
@@ -3047,8 +3313,15 @@ function bindAdd() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
 
+    const me0 = getUser();
+    if (!me0) {
+      toast("发之前先登录一下（邮箱验证码登录）");
+      location.hash = "#/mine";
+      return;
+    }
+
     const title = $("#fTitle").value.trim();
-    const authorName = $("#fAuthor").value.trim();
+    const authorName = me0.name;
     const province = "";
     const city = "";
     const address = $("#fAddress").value.trim();
@@ -3057,7 +3330,6 @@ function bindAdd() {
     let firstBad = null;
     [
       [$("#fTitle"), !title],
-      [$("#fAuthor"), !authorName],
       [$("#fAddress"), !address]
     ].forEach(([el, bad]) => {
       markError(el, bad);
@@ -3067,7 +3339,7 @@ function bindAdd() {
     if (firstBad) {
       firstBad.focus();
       firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
-      return toast("机位名称、发布人、具体地点都要填");
+      return toast("机位名称、具体地点都要填");
     }
 
     if (!add.picked.length) {
@@ -3075,7 +3347,7 @@ function bindAdd() {
       return toast("至少传 1 张实景图才能发布");
     }
 
-    const me = setUser(authorName);
+    const me = me0;
 
     const lngRaw = $("#fLng").value.trim();
     const latRaw = $("#fLat").value.trim();
@@ -3127,7 +3399,11 @@ function bindAdd() {
           const list = getSpots().map((s) => (String(s.id) === String(spot.id) ? spot : s));
           saveSpots(list);
           cloudState = "on";
-          toast("已同步到云端，所有人都能看到");
+          toast(
+            lastUploadFailed
+              ? "有 " + lastUploadFailed + " 张图没传上去，已留在本机，下次打开自动补传"
+              : "已同步到云端，" + images.length + " 张图所有人都能看到"
+          );
         })
         .catch(() => {
           cloudState = "error";
@@ -3159,6 +3435,13 @@ function ensureAdd() {
   } else {
     refreshAddSelects();
     syncQuickTags();
+    const me0 = getUser();
+    const line = $("#authorLine");
+    if (line) {
+      line.innerHTML = me0
+        ? "已登录：" + esc(me0.email) + (me0.creator ? "（创作者）" : "")
+        : '还没登录，<a href="#/mine">点这里用邮箱登录</a>';
+    }
   }
   if (add.pickMap) setTimeout(() => add.pickMap.invalidateSize(), 120);
 }
@@ -3286,18 +3569,26 @@ async function cloudUploadImage(dataUrl, spotId, idx) {
 }
 
 /* 发布后把这一条传到云端；返回替换后的图片链接数组 */
+let lastUploadFailed = 0;
+
 async function cloudSaveSpot(spot) {
   const images = [];
+  const failed = [];
   const total = (spot.images || []).length;
   for (let i = 0; i < total; i++) {
-    try {
-      if (total > 1) toast("正在上传图片 " + (i + 1) + "/" + total + "…", 1600);
-      const url = await cloudUploadImage(spot.images[i], spot.id, i);
-      if (url) images.push(url);
-    } catch (e) {
-      /* 单张图传失败不影响整条机位入库 */
+    let url = null;
+    for (let t = 0; t < 2 && !url; t++) {
+      try {
+        if (total > 1) toast("正在上传图片 " + (i + 1) + "/" + total + "…", 1600);
+        url = await cloudUploadImage(spot.images[i], spot.id, i);
+      } catch (e) {
+        if (t === 0) await new Promise((r) => setTimeout(r, 500));
+      }
     }
+    if (url) images.push(url);
+    else failed.push(i);
   }
+  lastUploadFailed = failed.length;
   const row = toRow(Object.assign({}, spot, { images: images }));
 
   /* 先按普通插入写；重复就改成更新；网络抖动重试两次 */
@@ -3331,6 +3622,68 @@ async function cloudSaveSpot(spot) {
   return images;
 }
 
+/* 创作者：改某一条的字段（键用数据库列名） */
+async function cloudPatchSpot(id, fields) {
+  if (!cloudOn()) return true;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(
+        cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)),
+        {
+          method: "PATCH",
+          headers: cloudHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify(fields)
+        }
+      );
+      if (res.ok) return true;
+      throw new Error("修改失败 " + res.status);
+    } catch (e) {
+      if (attempt === 2) throw e;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  }
+  return false;
+}
+
+async function cloudDeleteSpot(id) {
+  if (!cloudOn()) return true;
+  const res = await fetch(
+    cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)),
+    { method: "DELETE", headers: cloudHeaders({ Prefer: "return=minimal" }) }
+  );
+  if (!res.ok && res.status !== 404) throw new Error("删除失败 " + res.status);
+  return true;
+}
+
+/* 删除机位：本地和云端一起删 */
+async function removeSpot(id) {
+  const list = getSpots().filter((s) => String(s.id) !== String(id));
+  saveSpots(list);
+  try {
+    await cloudDeleteSpot(id);
+    toast("已删除");
+  } catch (e) {
+    toast("本地已删，云端没删掉：" + e.message);
+  }
+}
+
+/* 启动时把没坐标的机位按地址补齐坐标（补到云端，导航就能落到点上） */
+async function backfillGeo() {
+  if (!cloudOn()) return;
+  const list = getSpots().filter((s) => !(Number(s.lng) && Number(s.lat)) && (s.address || s.title));
+  if (!list.length) return;
+  for (const s of list.slice(0, 6)) {
+    const p = await geocode([s.city, s.address || s.title].filter(Boolean).join(" "));
+    if (!p) continue;
+    s.lng = p[0];
+    s.lat = p[1];
+    saveSpots(getSpots().map((x) => (String(x.id) === String(s.id) ? s : x)));
+    try {
+      await cloudPatchSpot(s.id, { lng: p[0], lat: p[1] });
+    } catch (e) {}
+  }
+}
+
 /* 启动时把云端数据拉到本地（本地独有的也保留，并顺手推上云，避免换域名后丢掉） */
 async function cloudSync() {
   if (!cloudOn()) return false;
@@ -3349,7 +3702,7 @@ async function cloudSync() {
       } catch (e) {}
     }
 
-    /* 同一条机位两边都有：图片以「有图的一边」为准，点赞数用云端的 */
+    /* 同一条机位两边都有：图片以云端为主，本机还没传上去的图补传后合并 */
     for (const l of local) {
       const remoteRow = map.get(String(l.id));
       if (!remoteRow) {
@@ -3358,9 +3711,17 @@ async function cloudSync() {
       }
       const rImgs = (remoteRow.images || []).filter(Boolean);
       const lImgs = (l.images || []).filter(Boolean);
+      const pending = lImgs.filter((s) => /^data:/i.test(s));
+      let mergedImgs = rImgs.length ? rImgs : lImgs;
+      if (pending.length) {
+        try {
+          const up = await cloudSaveSpot(Object.assign({}, l, { images: lImgs }));
+          mergedImgs = Array.from(new Set(up.concat(rImgs)));
+        } catch (e) {}
+      }
       map.set(
         String(l.id),
-        Object.assign({}, l, remoteRow, { images: rImgs.length ? rImgs : lImgs })
+        Object.assign({}, l, remoteRow, { images: mergedImgs })
       );
     }
     const merged = Array.from(map.values()).sort((a, b) =>
@@ -3381,7 +3742,7 @@ function cloudHintText() {
   return "云端已连接：新发布的机位所有人可见";
 }
 
-const mine = { inited: false };
+const mine = { inited: false, timer: null };
 
 function renderMine() {
   const me = getUser();
@@ -3394,7 +3755,7 @@ function renderMine() {
   }
   loginBox.style.display = "none";
   loggedBox.style.display = "block";
-  $("#mineName").textContent = me.name;
+  $("#mineName").textContent = me.email + (me.creator ? " · 创作者" : "");
 
   const all = getSpots();
   const list = all.filter(
@@ -3428,18 +3789,61 @@ function refreshMineFromCloud() {
 function ensureMine() {
   if (!mine.inited) {
     mine.inited = true;
-    $("#saveNick").addEventListener("click", () => {
-      const name = $("#fNick").value.trim();
-      if (!name) return toast("先写上你的名字");
-      setUser(name);
-      renderMine();
-      refreshMineFromCloud();
-      toast("已记下：" + name);
+
+    $("#sendCode").addEventListener("click", async () => {
+      const email = $("#fEmail").value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("邮箱格式不对");
+      $("#sendCode").disabled = true;
+      $("#loginTip").textContent = "正在发送…";
+      try {
+        await authSendOtp(email);
+        $("#loginTip").textContent = "验证码已发到 " + email + "，去邮箱看一下（也可能在垃圾箱）";
+        $("#fCode").focus();
+        let left = 60;
+        clearInterval(mine.timer);
+        mine.timer = setInterval(() => {
+          left--;
+          $("#sendCode").textContent = left > 0 ? left + " 秒后可重发" : "重新发送";
+          if (left <= 0) {
+            clearInterval(mine.timer);
+            $("#sendCode").disabled = false;
+          }
+        }, 1000);
+      } catch (e) {
+        $("#loginTip").textContent = e.message || "发送失败";
+        $("#sendCode").disabled = false;
+        toast("验证码发送失败，稍后再试");
+      }
     });
+
+    $("#doLogin").addEventListener("click", async () => {
+      const email = $("#fEmail").value.trim();
+      const code = $("#fCode").value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("邮箱格式不对");
+      if (!/^\d{6}$/.test(code)) return toast("验证码是 6 位数字");
+      $("#doLogin").disabled = true;
+      $("#loginTip").textContent = "正在登录…";
+      try {
+        const s = await authVerifyOtp(email, code);
+        $("#loginTip").textContent = "登录成功";
+        renderMine();
+        refreshMineFromCloud();
+        toast(s.creator ? "登录成功，你是创作者" : "登录成功");
+        if (!location.hash.includes("/mine")) location.hash = "#/mine";
+      } catch (e) {
+        $("#loginTip").textContent = e.message || "登录失败";
+        toast("登录失败，检查验证码");
+      } finally {
+        $("#doLogin").disabled = false;
+      }
+    });
+
     $("#logoutBtn").addEventListener("click", () => {
-      LS.set(KEYS.user, "");
-      $("#fNick").value = "";
+      clearUser();
+      $("#fEmail").value = "";
+      $("#fCode").value = "";
       renderMine();
+      toast("已退出登录");
     });
   }
   renderMine();
@@ -3502,6 +3906,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (cloudOn()) {
     cloudSync().then((changed) => {
       if (changed) route();
+      backfillGeo();
     });
   }
 });
