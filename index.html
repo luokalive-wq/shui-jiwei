@@ -1359,6 +1359,16 @@ label.upload-box {
   color: var(--muted);
 }
 
+/* ---------- 卡片与榜单图片 ---------- */
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-media { overflow: hidden; }
+.rank-thumb { overflow: hidden; }
+
 .view { display: none; }
 .view.active { display: block; }
 </style>
@@ -1595,8 +1605,8 @@ label.upload-box {
           <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
           <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 低涌稻田" maxlength="60" required>
           <div class="mini-tools">
-            <button id="pickToggle" class="chip-btn" type="button">在地图上标个点（可选）</button>
-            <button id="btnGeo" class="chip-btn" type="button">用当前位置</button>
+            <button id="pickToggle" class="chip-btn" type="button">在高德地图上选点</button>
+            <button id="btnGeo" class="chip-btn" type="button">用我当前位置</button>
           </div>
           <div class="pick-wrap" id="pickWrap" style="display:none">
             <div id="pickMap"></div>
@@ -2019,12 +2029,20 @@ function geocode(text) {
 }
 
 function cardHtml(spot) {
-  return (
-    '<a class="card" href="' + spotLink(spot.id) + '">' +
-      '<div class="card-media" style="' + coverStyle(spot) + '">' +
+  const img = spot.images && spot.images.length ? spot.images[0] : null;
+  const media = img
+    ? '<div class="card-media">' +
+        '<img class="cover-img" src="' + esc(img) + '" alt="' + esc(spot.title) + '" loading="lazy">' +
+        '<span class="heat-badge">♥ ' + heatOf(spot) + "</span>" +
+      "</div>"
+    : '<div class="card-media" style="' + coverStyle(spot) + '">' +
         '<span class="heat-badge">♥ ' + heatOf(spot) + "</span>" +
         coverFallback(spot) +
-      "</div>" +
+      "</div>";
+
+  return (
+    '<a class="card" href="' + spotLink(spot.id) + '">' +
+      media +
       '<div class="card-body">' +
         "<h3>" + esc(spot.title) + "</h3>" +
         '<div class="card-sub">' + esc(areaText(spot)) + "</div>" +
@@ -2395,10 +2413,14 @@ function filteredSpots() {
 }
 
 function rankRowHtml(spot, i) {
+  const img = spot.images && spot.images.length ? spot.images[0] : null;
+  const thumb = img
+    ? '<div class="rank-thumb"><img class="cover-img" src="' + esc(img) + '" alt="" loading="lazy"></div>'
+    : '<div class="rank-thumb" style="' + coverStyle(spot) + '"></div>';
   return (
     '<a class="rank-row top-' + (i + 1) + '" href="' + spotLink(spot.id) + '">' +
       '<div class="rank-no">' + (i + 1) + "</div>" +
-      '<div class="rank-thumb" style="' + coverStyle(spot) + '"></div>' +
+      thumb +
       '<div class="rank-main">' +
         "<h3>" + esc(spot.title) + "</h3>" +
         "<p>" + esc(areaText(spot)) +
@@ -2808,7 +2830,7 @@ function compressImage(file) {
       img.onerror = () => reject(new Error("无法解析图片"));
       img.onload = () => {
         try {
-          const maxSide = 1280;
+          const maxSide = 1080;
           const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
           const canvas = document.createElement("canvas");
           canvas.width = Math.round(img.width * scale);
@@ -2817,7 +2839,15 @@ function compressImage(file) {
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", 0.72));
+
+          /* 先用 0.6 出图；还是太大就继续降质量，控制单张 200KB 以内 */
+          let quality = 0.6;
+          let data = canvas.toDataURL("image/jpeg", quality);
+          while (data.length > 280000 && quality > 0.3) {
+            quality = Math.round((quality - 0.1) * 100) / 100;
+            data = canvas.toDataURL("image/jpeg", quality);
+          }
+          resolve(data);
         } catch (err) {
           reject(err);
         }
@@ -2909,7 +2939,8 @@ function bindAdd() {
     if (hidden) {
       if (typeof L === "undefined") return toast("地图组件未加载（需要联网）");
       wrap.style.display = "block";
-      $("#pickToggle").textContent = "收起地图选点";      if (!add.pickMap) {
+      $("#pickToggle").textContent = "收起地图选点";
+      if (!add.pickMap) {
         const hasInput = isNum($("#fLng").value) && isNum($("#fLat").value);
         const lng = hasInput ? Number($("#fLng").value) : 104.06;
         const lat = hasInput ? Number($("#fLat").value) : 30.66;
@@ -2930,9 +2961,22 @@ function bindAdd() {
         });
       }
       setTimeout(() => add.pickMap && add.pickMap.invalidateSize(), 120);
+
+      /* 没坐标但有地名：打开地图时按地名自动定位过去 */
+      if (!isNum($("#fLng").value) || !isNum($("#fLat").value)) {
+        const q = $("#fAddress").value.trim();
+        if (q) {
+          geocode(q).then((p) => {
+            if (!p) return;
+            setCoord(p[0], p[1]);
+            if (add.pickMap) add.pickMap.setView(toDisplay(p[0], p[1]), 15);
+            toast("已按「" + q + "」定位，可在地图上微调");
+          });
+        }
+      }
     } else {
       wrap.style.display = "none";
-      $("#pickToggle").textContent = "在地图上标个点（可选）";
+      $("#pickToggle").textContent = "在高德地图上选点";
     }
   });
 
@@ -3244,8 +3288,10 @@ async function cloudUploadImage(dataUrl, spotId, idx) {
 /* 发布后把这一条传到云端；返回替换后的图片链接数组 */
 async function cloudSaveSpot(spot) {
   const images = [];
-  for (let i = 0; i < (spot.images || []).length; i++) {
+  const total = (spot.images || []).length;
+  for (let i = 0; i < total; i++) {
     try {
+      if (total > 1) toast("正在上传图片 " + (i + 1) + "/" + total + "…", 1600);
       const url = await cloudUploadImage(spot.images[i], spot.id, i);
       if (url) images.push(url);
     } catch (e) {
