@@ -1912,14 +1912,62 @@ function clearUser() {
   LS.set(AUTH_KEY, "");
 }
 
-/* 发邮箱验证码（Supabase Auth，邮件里是 6 位数字） */
+/* 发邮箱验证码（Supabase Auth，邮件里是 6 位数字，也可能是登录链接） */
 async function authSendOtp(email) {
+  const redirect = location.origin + location.pathname;
   const res = await fetch(cloudBase() + "/auth/v1/otp", {
     method: "POST",
     headers: { apikey: CLOUD.key, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email, create_user: true })
+    body: JSON.stringify({
+      email: email,
+      create_user: true,
+      options: { email_redirect_to: redirect }
+    })
   });
   if (!res.ok) throw new Error("验证码发送失败 " + res.status + "：" + (await res.text()).slice(0, 120));
+}
+
+/* 从邮件里的登录链接回来时，地址栏会带 access_token，直接当登录成功 */
+function absorbHashToken() {
+  const raw = String(location.hash || "").replace(/^#/, "");
+  if (raw.indexOf("access_token=") === -1) return false;
+  const params = {};
+  raw.split("&").forEach((kv) => {
+    const i = kv.indexOf("=");
+    if (i > 0) params[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+  });
+  if (!params.access_token) return false;
+  let email = "";
+  let uid = "";
+  try {
+    const part = params.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(decodeURIComponent(escape(atob(part))));
+    email = payload.email || "";
+    uid = payload.sub || "";
+  } catch (e) {}
+  if (!email || !uid) return false;
+  saveSession({
+    email: email,
+    uid: uid,
+    access: params.access_token,
+    refresh: params.refresh_token || "",
+    name: email.split("@")[0],
+    creator: false
+  });
+  checkCreator(email).then((ok) => {
+    const s = getSession();
+    if (s) {
+      s.creator = ok;
+      saveSession(s);
+      renderMine();
+    }
+  });
+  try {
+    history.replaceState(null, "", location.pathname + "#/mine");
+  } catch (e) {
+    location.hash = "#/mine";
+  }
+  return true;
 }
 
 /* 用验证码换登录会话 */
@@ -3884,6 +3932,8 @@ function route() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  /* 从邮件登录链接回来：先把 token 收进来 */
+  absorbHashToken();
   /* 旧版自带的 8 个示例机位（id 为 1~8），一次性清掉 */
   try {
     if (!LS.get("jiweiji.seedremoved.v1")) {
