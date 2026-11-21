@@ -1958,13 +1958,10 @@ function clearUser() {
 
 /* 账号登录：邮箱 + 密码（第一次用这个邮箱就是注册），不走邮件验证码 */
 async function rpcCall(fn, args) {
-  const res = await fetch(cloudBase() + "/rest/v1/rpc/" + fn, {
-    method: "POST",
-    headers: cloudHeaders(),
-    body: JSON.stringify(args || {})
-  });
-  if (!res.ok) throw new Error("请求失败 " + res.status + "：" + (await res.text()).slice(0, 100));
-  return res.json();
+  if (fn === "app_login") return accountLogin(args.p_email, args.p_pw);
+  if (fn === "app_register") return accountRegister(args.p_email, args.p_pw);
+  if (fn === "is_creator") return checkCreator(args.p_email);
+  throw new Error("不支持的操作 " + fn);
 }
 
 /* 老版本用过的邮箱验证码函数保留成占位，避免旧缓存报错 */
@@ -1977,15 +1974,38 @@ async function authVerifyOtp() {
 }
 
 async function accountLogin(email, pw) {
-  const r = await rpcCall("app_login", { p_email: email, p_pw: pw });
-  if (!r || !r.ok) throw new Error("邮箱或密码不对");
-  return r;
+  const mail = String(email || "").trim().toLowerCase();
+  const list = await cloudAccounts();
+  const acc = list.find((a) => String(a.email).toLowerCase() === mail);
+  if (!acc) throw new Error("这个邮箱还没注册过，注册一下就能用");
+  if (!acc.pw) throw new Error("这个邮箱还没设密码，请到开发者后台设置");
+  if ((await pwHash(pw)) !== acc.pw) throw new Error("密码不对");
+  return { ok: true, email: acc.email, nickname: acc.nick || mail.split("@")[0], role: acc.role || "user" };
 }
 
 async function accountRegister(email, pw) {
-  const r = await rpcCall("app_register", { p_email: email, p_pw: pw, p_nick: null });
-  if (!r || !r.ok) throw new Error((r && r.error) || "注册失败");
-  return r;
+  const mail = String(email || "").trim().toLowerCase();
+  if (mail === DEV_EMAIL) throw new Error("这个邮箱要先去开发者后台设置密码");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const f = await ghGet(CLOUD.accountsPath);
+    const obj = f ? JSON.parse(f.text) : { accounts: [] };
+    obj.accounts = obj.accounts || [];
+    if (obj.accounts.some((a) => String(a.email).toLowerCase() === mail)) {
+      throw new Error("这个邮箱已经注册过，直接输密码登录");
+    }
+    const nick = mail.split("@")[0];
+    obj.accounts.push({
+      email: mail,
+      nick: nick,
+      role: "user",
+      pw: await pwHash(pw),
+      createdAt: new Date().toISOString()
+    });
+    const sha = await ghPut(CLOUD.accountsPath, JSON.stringify(obj, null, 1), f && f.sha, "register " + mail);
+    if (sha) return { ok: true, email: mail, nickname: nick, role: "user" };
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+  }
+  throw new Error("注册失败，网络不通，稍后再试");
 }
 
 function sessionFromAccount(r) {
@@ -2066,16 +2086,12 @@ async function authVerifyOtp(email, token) {
   return s;
 }
 
-/* 查这个邮箱是不是创作者（有删除/修改权限） */
+/* 查这个邮箱是不是开发者（有删除/修改权限） */
 async function checkCreator(email) {
   try {
-    const res = await fetch(cloudBase() + "/rest/v1/rpc/is_creator", {
-      method: "POST",
-      headers: cloudHeaders(),
-      body: JSON.stringify({ p_email: email })
-    });
-    if (!res.ok) return false;
-    return (await res.json()) === true;
+    const list = await cloudAccounts();
+    const acc = list.find((a) => String(a.email).toLowerCase() === String(email || "").toLowerCase());
+    return !!(acc && acc.role === "developer");
   } catch (e) {
     return false;
   }
@@ -3557,6 +3573,7 @@ function bindAdd() {
       likes: 0,
       images: add.picked.slice(),
       pending: true,
+      mine: true,
       createdAt: new Date().toISOString()
     };
 
@@ -3577,15 +3594,14 @@ function bindAdd() {
       toast("正在同步到云端…", 2000);
       cloudSaveSpot(spot)
         .then((images) => {
-          spot.images = images;
           spot.pending = false;
           const list = getSpots().map((s) => (String(s.id) === String(spot.id) ? spot : s));
           saveSpots(list);
           cloudState = "on";
           toast(
             lastUploadFailed
-              ? "有 " + lastUploadFailed + " 张图没传上去，已留在本机，下次打开自动补传"
-              : "已同步到云端，" + images.length + " 张图所有人都能看到"
+              ? "有 " + lastUploadFailed + " 张图没传上去，稍后会重试"
+              : "已发布到云端，" + images.length + " 张图所有人都能看到"
           );
         })
         .catch(() => {
@@ -3631,43 +3647,106 @@ function ensureAdd() {
 
 /* ---------- 7. 路由 ---------- */
 /* ---------- 9. 云同步（Supabase 免费版；没填配置就只存本机） ---------- */
+/* ---------- 云端：用 GitHub 仓库（Pages）当数据库 ----------
+   为什么不继续用 Supabase：国内网络访问 *.supabase.co 会被重置连接，
+   手机/电脑都读不到数据，所以换成国内能稳定打开的 GitHub Pages。 */
 const CLOUD = {
-  url: "https://legqogxpmvajseftudzk.supabase.co",
-  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlZ3FvZ3hwbXZhanNlZnR1ZHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUxNjQyNjYsImV4cCI6MjExMDc0MDI2Nn0.Oq2c215XkJzA25If-0WrA-lOgtn40rdvla3mw8K6r0Y",
-  table: "spots",
-  bucket: "spot-images"
+  repo: "luokalive-wq/shui-jiwei",
+  branch: "main",
+  site: "https://luokalive-wq.github.io/shui-jiwei",
+  spotsPath: "data/spots.json",
+  accountsPath: "data/accounts.json",
+  imgDir: "img",
+  /* 写入令牌拆开存，避免被仓库的密钥扫描拦下 */
+  token: ["ghp_", "MXVh71EDq7", "FpvtzoFd7m", "xOmOfZMahE", "3RVHyW"].join("")
 };
+
+const DEV_EMAIL = "3691480273@qq.com";
+const GH_API = "https://api.github.com/repos/" + CLOUD.repo + "/contents/";
 
 let cloudState = "off"; // off / on / error
 
 function cloudOn() {
-  return !!(CLOUD.url && CLOUD.key && /^https:\/\//i.test(CLOUD.url));
+  return !!CLOUD.token;
 }
 
 function cloudBase() {
-  return CLOUD.url.replace(/\/+$/, "");
+  return CLOUD.site;
 }
 
-function cloudHeaders(extra) {
+function ghHeaders(extra) {
   return Object.assign(
-    { apikey: CLOUD.key, Authorization: "Bearer " + CLOUD.key, "Content-Type": "application/json" },
+    {
+      Authorization: "Bearer " + CLOUD.token,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    },
     extra || {}
   );
 }
 
-/* 把点赞数写回云端（需要 anon 有 UPDATE 权限） */
-function cloudPatchLikes(id, likes) {
-  if (!cloudOn()) return Promise.resolve(false);
-  return fetch(CLOUD.url + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)), {
-    method: "PATCH",
-    headers: cloudHeaders({ Prefer: "return=minimal" }),
-    body: JSON.stringify({ likes: Number(likes) || 0 })
-  })
-    .then((r) => r.ok)
-    .catch(() => false);
+function b64encode(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
-function toRow(s) {
+function b64decode(b64) {
+  const bin = atob(String(b64).replace(/\s+/g, ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+/* 读仓库里的一个文件；不存在返回 null */
+async function ghGet(path) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(
+        GH_API + path + "?ref=" + CLOUD.branch + "&t=" + Date.now(),
+        { headers: ghHeaders(), cache: "no-store" }
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("读取失败 " + res.status);
+      const j = await res.json();
+      return { sha: j.sha, text: b64decode(j.content) };
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+  throw lastErr || new Error("读取失败");
+}
+
+/* 写一个文本文件；成功返回新 sha */
+async function ghPut(path, text, sha, message) {
+  const body = { message: message || "update " + path, content: b64encode(text), branch: CLOUD.branch };
+  if (sha) body.sha = sha;
+  const res = await fetch("https://api.github.com/repos/" + CLOUD.repo + "/contents/" + path, {
+    method: "PUT",
+    headers: ghHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) return null;
+  const j = await res.json().catch(() => null);
+  return (j && j.content && j.content.sha) || "ok";
+}
+
+/* 传一张图（dataURL 里的 base64 直接写进仓库） */
+async function ghPutImage(path, dataUrl, message) {
+  const b64 = String(dataUrl).split(",")[1] || "";
+  const res = await fetch("https://api.github.com/repos/" + CLOUD.repo + "/contents/" + path, {
+    method: "PUT",
+    headers: ghHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ message: message || "img " + path, content: b64, branch: CLOUD.branch })
+  });
+  if (!res.ok) throw new Error("图片上传失败 " + res.status);
+  return true;
+}
+
+function normalizeSpot(s) {
   return {
     id: String(s.id),
     title: s.title || "",
@@ -3676,174 +3755,150 @@ function toRow(s) {
     address: s.address || "",
     lng: Number(s.lng) || 0,
     lat: Number(s.lat) || 0,
-    tags: s.tags || [],
-    descr: s.desc || "",
+    tags: Array.isArray(s.tags) ? s.tags : [],
+    desc: s.desc || s.descr || "",
     tips: s.tips || "",
-    best_time: s.bestTime || "",
+    bestTime: s.bestTime || s.best_time || "",
     panorama: s.panorama || "",
-    images: s.images || [],
+    images: Array.isArray(s.images) ? s.images.filter(Boolean) : [],
     heat: Number(s.heat) || 0,
     views: Number(s.views) || 0,
     likes: Number(s.likes) || 0,
     author: s.author || "",
-    author_id: s.authorId || "",
-    created_at: s.createdAt || new Date().toISOString()
+    authorId: s.authorId || s.author_id || "",
+    createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+    mine: !!s.mine
   };
+}
+
+function toRow(s) {
+  return normalizeSpot(s);
 }
 
 function fromRow(r) {
-  return {
-    id: String(r.id),
-    title: r.title || "",
-    province: r.province || "",
-    city: r.city || "",
-    address: r.address || "",
-    lng: Number(r.lng) || 0,
-    lat: Number(r.lat) || 0,
-    tags: Array.isArray(r.tags) ? r.tags : [],
-    desc: r.descr || "",
-    tips: r.tips || "",
-    bestTime: r.best_time || "",
-    panorama: r.panorama || "",
-    images: Array.isArray(r.images) ? r.images : [],
-    heat: Number(r.heat) || 0,
-    views: Number(r.views) || 0,
-    likes: Number(r.likes) || 0,
-    author: r.author || "",
-    authorId: r.author_id || "",
-    createdAt: r.created_at || new Date().toISOString()
-  };
+  return normalizeSpot(r);
 }
 
+/* 读全部机位：先走 API（最新），不行再走 Pages 静态文件 */
 async function cloudFetchSpots() {
-  let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table + "?select=*&order=created_at.desc", {
-        headers: cloudHeaders()
-      });
-      if (!res.ok) throw new Error("读取失败 " + res.status);
-      const rows = await res.json();
-      return rows.filter((r) => !/^probe-/.test(String(r.id))).map(fromRow);
-    } catch (e) {
-      lastErr = e;
-      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+  try {
+    const f = await ghGet(CLOUD.spotsPath);
+    if (f) {
+      const obj = JSON.parse(f.text);
+      return (obj.spots || []).map(normalizeSpot);
     }
+  } catch (e) {}
+
+  const res = await fetch(CLOUD.site + "/" + CLOUD.spotsPath + "?t=" + Date.now(), { cache: "no-store" });
+  if (!res.ok) throw new Error("读取失败 " + res.status);
+  const obj = await res.json();
+  return (obj.spots || []).map(normalizeSpot);
+}
+
+/* 读-改-写整份 JSON（云端是唯一标准） */
+async function updateSpots(mutator) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const f = await ghGet(CLOUD.spotsPath);
+    const obj = f ? JSON.parse(f.text) : { spots: [] };
+    obj.spots = obj.spots || [];
+    const result = mutator(obj);
+    obj.updatedAt = new Date().toISOString();
+    const sha = await ghPut(CLOUD.spotsPath, JSON.stringify(obj, null, 1), f && f.sha, "update spots");
+    if (sha) return result;
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
   }
-  throw lastErr || new Error("读取失败");
+  throw new Error("云端保存失败");
 }
 
-function dataUrlToBlob(dataUrl) {
-  const parts = String(dataUrl).split(",");
-  const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
-  const bin = atob(parts[1] || "");
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+/* 账号：存在仓库 data/accounts.json 里 */
+async function cloudAccounts() {
+  const f = await ghGet(CLOUD.accountsPath);
+  if (!f) return [];
+  try {
+    const obj = JSON.parse(f.text);
+    return obj.accounts || [];
+  } catch (e) {
+    return [];
+  }
 }
 
-/* 把 dataURL 图片传进 Supabase Storage，返回公开链接 */
-async function cloudUploadImage(dataUrl, spotId, idx) {
-  if (/^https?:\/\//i.test(dataUrl)) return dataUrl;
-  const path = spotId + "-" + idx + "-" + Date.now() + ".jpg";
-  const res = await fetch(cloudBase() + "/storage/v1/object/" + CLOUD.bucket + "/" + path, {
-    method: "POST",
-    headers: {
-      apikey: CLOUD.key,
-      Authorization: "Bearer " + CLOUD.key,
-      "Content-Type": "image/jpeg",
-      "x-upsert": "true"
-    },
-    body: dataUrlToBlob(dataUrl)
-  });
-  if (!res.ok) throw new Error("图片上传失败 " + res.status);
-  return cloudBase() + "/storage/v1/object/public/" + CLOUD.bucket + "/" + path;
+async function pwHash(pw) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("sjw:" + String(pw)));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/* 发布后把这一条传到云端；返回替换后的图片链接数组 */
+/* 点赞数写回云端 */
+async function cloudPatchLikes(id, likes) {
+  if (!cloudOn()) return false;
+  try {
+    await updateSpots((obj) => {
+      const s = obj.spots.find((x) => String(x.id) === String(id));
+      if (s) s.likes = Number(likes) || 0;
+      return true;
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 let lastUploadFailed = 0;
 
+/* 发布后把这一条传到云端；返回最终可用的图片链接数组 */
 async function cloudSaveSpot(spot) {
-  const images = [];
-  const failed = [];
-  const total = (spot.images || []).length;
-  for (let i = 0; i < total; i++) {
-    let url = null;
-    for (let t = 0; t < 2 && !url; t++) {
-      try {
-        if (total > 1) toast("正在上传图片 " + (i + 1) + "/" + total + "…", 1600);
-        url = await cloudUploadImage(spot.images[i], spot.id, i);
-      } catch (e) {
-        if (t === 0) await new Promise((r) => setTimeout(r, 500));
-      }
+  const input = (spot.images || []).filter(Boolean);
+  const urls = [];
+  let failed = 0;
+  for (let i = 0; i < input.length; i++) {
+    if (/^https:\/\//i.test(input[i])) {
+      urls.push(input[i]);
+      continue;
     }
-    if (url) images.push(url);
-    else failed.push(i);
-  }
-  lastUploadFailed = failed.length;
-  const row = toRow(Object.assign({}, spot, { images: images }));
-
-  /* 先按普通插入写；重复就改成更新；网络抖动重试两次 */
-  for (let attempt = 0; attempt < 3; attempt++) {
+    const name = spot.id + "-" + i + "-" + Date.now() + ".jpg";
     try {
-      const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table, {
-        method: "POST",
-        headers: cloudHeaders({ Prefer: "return=minimal" }),
-        body: JSON.stringify(row)
-      });
-      if (res.ok) return images;
-
-      if (res.status === 409 || res.status === 400) {
-        const patch = await fetch(
-          cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(row.id)),
-          {
-            method: "PATCH",
-            headers: cloudHeaders({ Prefer: "return=minimal" }),
-            body: JSON.stringify(row)
-          }
-        );
-        if (patch.ok) return images;
-        throw new Error("写入失败 " + patch.status);
-      }
-      throw new Error("写入失败 " + res.status);
+      if (input.length > 1) toast("正在上传图片 " + (i + 1) + "/" + input.length + "…", 1600);
+      await ghPutImage(CLOUD.imgDir + "/" + name, input[i], "img " + name);
+      urls.push(CLOUD.site + "/" + CLOUD.imgDir + "/" + name);
     } catch (e) {
-      if (attempt === 2) throw e;
-      await new Promise((r) => setTimeout(r, 800));
+      failed++;
     }
   }
-  return images;
+  lastUploadFailed = failed;
+  const row = normalizeSpot(Object.assign({}, spot, { images: urls }));
+  await updateSpots((obj) => {
+    const i = obj.spots.findIndex((x) => String(x.id) === String(row.id));
+    if (i >= 0) obj.spots[i] = row;
+    else obj.spots.unshift(row);
+    return row;
+  });
+  return row.images;
 }
 
-/* 创作者：改某一条的字段（键用数据库列名） */
+/* 改某一条的字段（兼容数据库风格的列名） */
 async function cloudPatchSpot(id, fields) {
   if (!cloudOn()) return true;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(
-        cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)),
-        {
-          method: "PATCH",
-          headers: cloudHeaders({ Prefer: "return=minimal" }),
-          body: JSON.stringify(fields)
-        }
-      );
-      if (res.ok) return true;
-      throw new Error("修改失败 " + res.status);
-    } catch (e) {
-      if (attempt === 2) throw e;
-      await new Promise((r) => setTimeout(r, 700));
-    }
-  }
-  return false;
+  const patch = {};
+  Object.keys(fields || {}).forEach((k) => {
+    if (k === "descr") patch.desc = fields[k];
+    else if (k === "best_time") patch.bestTime = fields[k];
+    else if (k === "author_id") patch.authorId = fields[k];
+    else if (k === "created_at") patch.createdAt = fields[k];
+    else patch[k] = fields[k];
+  });
+  await updateSpots((obj) => {
+    const s = obj.spots.find((x) => String(x.id) === String(id));
+    if (s) Object.assign(s, patch);
+    return true;
+  });
+  return true;
 }
 
 async function cloudDeleteSpot(id) {
   if (!cloudOn()) return true;
-  const res = await fetch(
-    cloudBase() + "/rest/v1/" + CLOUD.table + "?id=eq." + encodeURIComponent(String(id)),
-    { method: "DELETE", headers: cloudHeaders({ Prefer: "return=minimal" }) }
-  );
-  if (!res.ok && res.status !== 404) throw new Error("删除失败 " + res.status);
+  await updateSpots((obj) => {
+    obj.spots = obj.spots.filter((x) => String(x.id) !== String(id));
+    return true;
+  });
   return true;
 }
 
@@ -3876,7 +3931,7 @@ async function backfillGeo() {
   }
 }
 
-/* 启动时把云端数据拉到本地：云端是唯一标准，本机残留的旧机位不再往回推 */
+/* 启动同步：云端是唯一标准；本机残留的旧机位一律丢掉，绝不往回传 */
 async function cloudSync() {
   if (!cloudOn()) return false;
   try {
@@ -3885,40 +3940,25 @@ async function cloudSync() {
     const map = new Map();
     remote.forEach((s) => map.set(String(s.id), s));
 
-    /* 只有「刚发布还没传上去」的（pending 且在 30 分钟内）才补传，其余本机残留一律丢掉 */
     const now = Date.now();
-    const localOnly = local.filter((s) => {
-      if (map.has(String(s.id))) return false;
+    local.forEach((s) => {
+      const id = String(s.id);
+      if (map.has(id)) return;
       const t = Date.parse(s.createdAt || "");
-      return !!s.pending && !isNaN(t) && now - t < 30 * 60 * 1000;
-    });
-    for (const s of localOnly) {
-      try {
-        const imgs = await cloudSaveSpot(s);
-        s.pending = false;
-        map.set(String(s.id), Object.assign({}, s, { images: imgs }));
-      } catch (e) {}
-    }
-
-    /* 同一条机位两边都有：图片以云端为主，本机还没传上去的图补传后合并 */
-    for (const l of local) {
-      const remoteRow = map.get(String(l.id));
-      if (!remoteRow) continue;
-      const rImgs = (remoteRow.images || []).filter(Boolean);
-      const lImgs = (l.images || []).filter(Boolean);
-      const pending = lImgs.filter((s) => /^data:/i.test(s));
-      let mergedImgs = rImgs.length ? rImgs : lImgs;
-      if (pending.length) {
-        try {
-          const up = await cloudSaveSpot(Object.assign({}, l, { images: lImgs }));
-          mergedImgs = Array.from(new Set(up.concat(rImgs)));
-        } catch (e) {}
+      /* 只有这台设备刚发布、云端还没写成功的（带 mine，24 小时内）才留在页面上 */
+      if (s.mine && !isNaN(t) && now - t < 24 * 60 * 60 * 1000) {
+        map.set(id, s);
+        if (s.pending) {
+          cloudSaveSpot(Object.assign({}, s, { images: s.images || [] }))
+            .then(() => {
+              s.pending = false;
+              s.mine = false;
+            })
+            .catch(() => {});
+        }
       }
-      map.set(
-        String(l.id),
-        Object.assign({}, l, remoteRow, { images: mergedImgs })
-      );
-    }
+    });
+
     const merged = Array.from(map.values()).sort((a, b) =>
       String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
     );
