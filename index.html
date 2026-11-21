@@ -1369,6 +1369,47 @@ label.upload-box {
 .card-media { overflow: hidden; }
 .rank-thumb { overflow: hidden; }
 
+/* ---------- 右上角「我的」小圆 ---------- */
+.dock-me {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 70;
+  display: flex;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.dock-me .dock-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #5ac8fa, #007aff);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 6px 16px rgba(0, 122, 255, .28);
+  border: 2px solid rgba(255, 255, 255, .9);
+}
+.dock-me em { display: none; }
+.header-inner { padding-right: 58px; }
+
+/* ---------- 详情轮播计数 ---------- */
+.carousel-count {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .42);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 3;
+}
+
 .view { display: none; }
 .view.active { display: block; }
 </style>
@@ -3144,7 +3185,7 @@ function compressImage(file) {
       img.onerror = () => reject(new Error("无法解析图片"));
       img.onload = () => {
         try {
-          const maxSide = 960;
+          const maxSide = 840;
           const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
           const canvas = document.createElement("canvas");
           canvas.width = Math.round(img.width * scale);
@@ -3155,9 +3196,9 @@ function compressImage(file) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           /* 先用 0.6 出图；还是太大就继续降质量，控制单张 200KB 以内 */
-          let quality = 0.55;
+          let quality = 0.5;
           let data = canvas.toDataURL("image/jpeg", quality);
-          while (data.length > 200000 && quality > 0.32) {
+          while (data.length > 160000 && quality > 0.32) {
             quality = Math.round((quality - 0.1) * 100) / 100;
             data = canvas.toDataURL("image/jpeg", quality);
           }
@@ -3977,6 +4018,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
 
 
 
