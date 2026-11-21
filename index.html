@@ -2717,7 +2717,25 @@ function renderHome() {
     ? list.map(cardHtml).join("")
     : home.spots.length
       ? emptyHtml("没有匹配的机位", "换个关键词，或点「重置」看看全部机位。")
-      : emptyHtml("还没有机位", "点右上角「发布机位」，把你去过的机位放上来。");
+      : cloudOn() && cloudState !== "on"
+        ? '<div class="empty"><strong>云端暂时没读到数据</strong>网络抖了一下，' +
+          '<button class="link-btn" id="retryCloud" type="button">点这里重试</button>，或者下拉刷新页面。</div>'
+        : emptyHtml("还没有机位", "点右上角「发布机位」，把你去过的机位放上来。");
+
+  const retryBtn = $("#retryCloud");
+  if (retryBtn) {
+    retryBtn.onclick = () => {
+      cloudState = "off";
+      cloudSync().then((ok) => {
+        if (ok) {
+          refreshHome();
+          toast("已从云端同步");
+        } else {
+          toast("还是连不上，检查网络后再试");
+        }
+      });
+    };
+  }
 
   const ranked = list.slice().sort((a, b) => heatOf(b) - heatOf(a)).slice(0, 10);
   $("#hotRank").innerHTML = ranked.length
@@ -3696,12 +3714,21 @@ function fromRow(r) {
 }
 
 async function cloudFetchSpots() {
-  const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table + "?select=*&order=created_at.desc", {
-    headers: cloudHeaders()
-  });
-  if (!res.ok) throw new Error("读取失败 " + res.status);
-  const rows = await res.json();
-  return rows.filter((r) => !/^probe-/.test(String(r.id))).map(fromRow);
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(cloudBase() + "/rest/v1/" + CLOUD.table + "?select=*&order=created_at.desc", {
+        headers: cloudHeaders()
+      });
+      if (!res.ok) throw new Error("读取失败 " + res.status);
+      const rows = await res.json();
+      return rows.filter((r) => !/^probe-/.test(String(r.id))).map(fromRow);
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
+  throw lastErr || new Error("读取失败");
 }
 
 function dataUrlToBlob(dataUrl) {
