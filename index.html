@@ -3556,6 +3556,7 @@ function bindAdd() {
       views: 0,
       likes: 0,
       images: add.picked.slice(),
+      pending: true,
       createdAt: new Date().toISOString()
     };
 
@@ -3577,6 +3578,7 @@ function bindAdd() {
       cloudSaveSpot(spot)
         .then((images) => {
           spot.images = images;
+          spot.pending = false;
           const list = getSpots().map((s) => (String(s.id) === String(spot.id) ? spot : s));
           saveSpots(list);
           cloudState = "on";
@@ -3874,7 +3876,7 @@ async function backfillGeo() {
   }
 }
 
-/* 启动时把云端数据拉到本地（本地独有的也保留，并顺手推上云，避免换域名后丢掉） */
+/* 启动时把云端数据拉到本地：云端是唯一标准，本机残留的旧机位不再往回推 */
 async function cloudSync() {
   if (!cloudOn()) return false;
   try {
@@ -3883,11 +3885,17 @@ async function cloudSync() {
     const map = new Map();
     remote.forEach((s) => map.set(String(s.id), s));
 
-    /* 本机有、云端没有的，补传上去（旧链接打开一次就能把数据搬到云） */
-    const localOnly = local.filter((s) => !map.has(String(s.id)));
+    /* 只有「刚发布还没传上去」的（pending 且在 30 分钟内）才补传，其余本机残留一律丢掉 */
+    const now = Date.now();
+    const localOnly = local.filter((s) => {
+      if (map.has(String(s.id))) return false;
+      const t = Date.parse(s.createdAt || "");
+      return !!s.pending && !isNaN(t) && now - t < 30 * 60 * 1000;
+    });
     for (const s of localOnly) {
       try {
         const imgs = await cloudSaveSpot(s);
+        s.pending = false;
         map.set(String(s.id), Object.assign({}, s, { images: imgs }));
       } catch (e) {}
     }
@@ -3895,10 +3903,7 @@ async function cloudSync() {
     /* 同一条机位两边都有：图片以云端为主，本机还没传上去的图补传后合并 */
     for (const l of local) {
       const remoteRow = map.get(String(l.id));
-      if (!remoteRow) {
-        map.set(String(l.id), l);
-        continue;
-      }
+      if (!remoteRow) continue;
       const rImgs = (remoteRow.images || []).filter(Boolean);
       const lImgs = (l.images || []).filter(Boolean);
       const pending = lImgs.filter((s) => /^data:/i.test(s));
@@ -3970,15 +3975,8 @@ function refreshMineFromCloud() {
   if (!me || !cloudOn()) return;
   cloudFetchSpots()
     .then((remote) => {
-      const local = getSpots();
       const map = new Map();
       remote.forEach((s) => map.set(String(s.id), s));
-      local.forEach((s) => {
-        const r = map.get(String(s.id));
-        const rImgs = r ? (r.images || []).filter(Boolean) : [];
-        const lImgs = (s.images || []).filter(Boolean);
-        map.set(String(s.id), Object.assign({}, s, r || {}, { images: rImgs.length ? rImgs : lImgs }));
-      });
       saveSpots(Array.from(map.values()));
       renderMine();
     })
