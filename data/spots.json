@@ -1,6 +1,34 @@
 {
- "updatedAt": "2026-11-22T08:11:26.549Z",
+ "updatedAt": "2026-11-22T09:05:10.412Z",
  "spots": [
+  {
+   "id": "smwrm2jatpw9",
+   "title": "广州塔塔马",
+   "province": "",
+   "city": "",
+   "address": "位于广州市海珠区阅江西路222号广州塔南广场，地铁3号线a口出",
+   "lng": 113.317841,
+   "lat": 23.109165,
+   "tags": [
+    "抽象",
+    "打卡"
+   ],
+   "desc": "没啥技术含量，对着马拍就可以了",
+   "tips": "人比较多，没有必要为了这个去",
+   "bestTime": "",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwrm2jatpw9-0-1795338301535.jpg",
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwrm2jatpw9-1-1795338305615.jpg"
+   ],
+   "heat": 0,
+   "views": 0,
+   "likes": 0,
+   "author": "一水",
+   "authorId": "devmwrm2jaqd60",
+   "createdAt": "2026-11-22T09:05:01.494Z",
+   "mine": true
+  },
   {
    "id": "smwrk5kq7lpo",
    "title": "从化的稻田",
