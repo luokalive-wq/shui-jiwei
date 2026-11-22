@@ -1428,6 +1428,98 @@ label.upload-box {
   }
 }
 
+/* ---------- 地址写法教程 ---------- */
+.guide-link {
+  float: right;
+  margin-top: -26px;
+  padding: 3px 10px;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  background: #f2f7ff;
+  color: #0a66d6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.guide-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 14px 40px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.guide-card {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.guide-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.guide-head strong {
+  font-size: 15px;
+  color: #16202c;
+}
+
+.guide-x {
+  flex: none;
+  padding: 5px 13px;
+  border: 1px solid #e2e7ee;
+  border-radius: 999px;
+  background: #f7f9fc;
+  color: #4b5b6e;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.guide-body {
+  padding: 6px 16px 20px;
+}
+
+.guide-step {
+  margin: 14px 0 10px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #2b3a4b;
+}
+
+.guide-body img {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #eef1f5;
+  background: #f4f6f9;
+}
+
+.guide-tip {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f2f7ff;
+  color: #0a55c0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .view { display: none; }
 .view.active { display: block; }
 </style>
@@ -1672,6 +1764,7 @@ label.upload-box {
 
         <div class="field">
           <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
+          <button type="button" class="guide-link" id="btnAddrGuide">地址怎么填？看教程 ›</button>
           <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 低涌稻田" maxlength="60" required>
           <div class="mini-tools">
             <button id="btnGeo" class="chip-btn on" type="button">📍 用我当前位置</button>
@@ -1749,6 +1842,23 @@ label.upload-box {
     </footer>
   </section>
 
+</div>
+
+<!-- 地址写法教程 -->
+<div class="guide-mask" id="addrGuide" style="display:none">
+  <div class="guide-card">
+    <div class="guide-head">
+      <strong>地址这么填，才能自动出坐标</strong>
+      <button type="button" class="guide-x" id="guideClose">关闭</button>
+    </div>
+    <div class="guide-body">
+      <p class="guide-step"><b>① 先在百度 / 高德地图搜这个点</b>，把详情里那行<strong>带具体位置的详细地址</strong>复制下来——就是图片里标红的那段。</p>
+      <img src="https://luokalive-wq.github.io/shui-jiwei/img/guide-1.jpg" alt="地图详情里的详细地址" loading="lazy">
+      <p class="guide-step"><b>② 只写个大地名是不行的</b>，像「从化的艾米稻香小镇」这种地图上没有具体点位的写法，系统认不出坐标。</p>
+      <img src="https://luokalive-wq.github.io/shui-jiwei/img/guide-2.jpg" alt="错误示范：只写大地名" loading="lazy">
+      <p class="guide-tip">照着 ① 复制粘贴，光标一离开地址框，坐标就自动填好了，你什么都不用动。</p>
+    </div>
+  </div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -3497,6 +3607,26 @@ function dataUrlToThumb(dataUrl, maxSide, quality) {
 
 function bindAdd() {
   refreshAddSelects();
+
+  /* 地址教程弹层 */
+  const guideBtn = $("#btnAddrGuide");
+  const guideMask = $("#addrGuide");
+  if (guideBtn && guideMask) {
+    const closeGuide = () => {
+      guideMask.style.display = "none";
+      document.body.style.overflow = "";
+    };
+    guideBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      guideMask.style.display = "flex";
+      document.body.style.overflow = "hidden";
+    });
+    const gx = $("#guideClose");
+    if (gx) gx.addEventListener("click", closeGuide);
+    guideMask.addEventListener("click", (e) => {
+      if (e.target === guideMask) closeGuide();
+    });
+  }
 
   const nickInput = $("#fNick");
   if (nickInput) nickInput.value = LS.get("jiweiji.nick.v1") || "";
