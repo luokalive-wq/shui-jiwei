@@ -2215,71 +2215,8 @@ function spotLink(id) {
   return "#/spot/" + encodeURIComponent(id);
 }
 
-/* 地名 → 坐标：优先高德（国内最准，需要免费 key），没 key 就用 OSM */
-const AMAP_KEY = ""; // 在高德开放平台申请个免费 key 填这里，地名查坐标就会非常准
-
-function amapSearch(text) {
-  if (!AMAP_KEY) return Promise.resolve(null);
-  const url =
-    "https://restapi.amap.com/v3/place/text?key=" + AMAP_KEY +
-    "&keywords=" + encodeURIComponent(text) + "&citylimit=false&offset=1&page=1&extensions=base";
-  return fetch(url)
-    .then((r) => (r.ok ? r.json() : null))
-    .then((j) => {
-      const poi = j && j.status === "1" && j.pois && j.pois[0];
-      if (!poi || !poi.location) return null;
-      const p = String(poi.location).split(",");
-      return isNum(p[0]) && isNum(p[1]) ? [Number(p[0]), Number(p[1])] : null;
-    })
-    .catch(() => null);
-}
-
-function geocode(text) {
-  const q = String(text || "").trim();
-  if (!q) return Promise.resolve(null);
-  const hitCache = geoCacheGet(q);
-  if (hitCache !== undefined && hitCache && hitCache.length === 2) {
-    return Promise.resolve(hitCache);
-  }
-  return amapSearch(q).then((amapHit) => {
-    if (amapHit) {
-      geoCacheSet(q, amapHit);
-      return amapHit;
-    }
-    const url =
-      "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=cn&accept-language=zh-CN&q=" +
-      encodeURIComponent(q);
-    return fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout ? AbortSignal.timeout(7000) : undefined
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((arr) => {
-        const hit = Array.isArray(arr) ? arr[0] : null;
-        const v = hit && isNum(hit.lon) && isNum(hit.lat) ? [Number(hit.lon), Number(hit.lat)] : null;
-        if (v) geoCacheSet(q, v);
-        return v;
-      })
-      .catch(() => null);
-  });
-}
-
-function geoCacheGet(q) {
-  try {
-    const all = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {};
-    return all[q];
-  } catch (e) {
-    return undefined;
-  }
-}
-
-function geoCacheSet(q, v) {
-  try {
-    const all = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {};
-    all[q] = v;
-    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(all));
-  } catch (e) {}
-}
+/* 地名 → 坐标：用户一个都不用填。高德 key 有就用高德，没有就走百度那条（免 key） */
+const AMAP_KEY = "";
 
 const GEO_CACHE_KEY = "jiweiji.geo.v1";
 
@@ -2298,6 +2235,154 @@ function geoCacheSet(q, v) {
     all[q] = v;
     localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(all));
   } catch (e) {}
+}
+
+function amapSearch(text) {
+  if (!AMAP_KEY) return Promise.resolve(null);
+  const url =
+    "https://restapi.amap.com/v3/place/text?key=" + AMAP_KEY +
+    "&keywords=" + encodeURIComponent(text) + "&citylimit=false&offset=1&page=1&extensions=base";
+  return fetch(url)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const poi = j && j.status === "1" && j.pois && j.pois[0];
+      if (!poi || !poi.location) return null;
+      const p = String(poi.location).split(",");
+      if (!isNum(p[0]) || !isNum(p[1])) return null;
+      /* 高德给的是火星坐标，站内存 WGS84 */
+      const w = gcj02ToWgs84(Number(p[0]), Number(p[1]));
+      return { lng: w[0], lat: w[1], label: poi.name || "" };
+    })
+    .catch(() => null);
+}
+
+/* ---- 百度地图这条通道：不要 key，国内直接能用 ---- */
+const BD_JG = [1.289059486e7, 8362377.87, 5591021, 3481989.83, 1678043.12, 0];
+const BD_IP = [
+  [1.410526172116255e-8, 8.98305509648872e-6, -1.9939833816331, 200.9824383106796, -187.2403703815547, 91.6087516669843, -23.38765649603339, 2.57121317296198, -0.03801003308653, 1.73379812e7],
+  [-7.435856389565537e-9, 8.983055097726239e-6, -0.78625201886289, 96.32687599759846, -1.85204757529826, -59.36935905485877, 47.40033549296737, -16.50741931063887, 2.28786674699375, 1.026014486e7],
+  [-3.030883460898826e-8, 8.98305509983578e-6, 0.30071316287616, 59.74293618442277, 7.357984074871, -25.38371002664745, 13.45380521110908, -3.29883767235584, 0.32710905363475, 6856817.37],
+  [-1.981981304930552e-8, 8.983055099779535e-6, 0.03278182852591, 40.31678527705744, 0.65659298677277, -4.44255534477492, 0.85341911805263, 0.12923347998204, -0.04625736007561, 4482777.06],
+  [3.09191371068437e-9, 8.983055096812155e-6, 6.995724062e-5, 23.10934304144901, -2.3663490511e-4, -0.6321817810242, -0.00663494467273, 0.03430082397953, -0.00466043876332, 2555164.4],
+  [2.890871144776878e-9, 8.983055095805407e-6, -3.068298e-8, 7.47137025468032, -3.53937994e-6, -0.02145144861037, -1.234426596e-5, 1.0322952773e-4, -3.23890364e-6, 826088.5]
+];
+
+function bdMcToBd09(x, y) {
+  let c = BD_IP[5];
+  const ay = Math.abs(y);
+  for (let i = 0; i < BD_JG.length; i++) {
+    if (ay >= BD_JG[i]) {
+      c = BD_IP[i];
+      break;
+    }
+  }
+  let lng = c[0] + c[1] * Math.abs(x);
+  const d = ay / c[9];
+  let lat =
+    c[2] +
+    c[3] * d +
+    c[4] * d * d +
+    c[5] * Math.pow(d, 3) +
+    c[6] * Math.pow(d, 4) +
+    c[7] * Math.pow(d, 5) +
+    c[8] * Math.pow(d, 6);
+  if (x < 0) lng = -lng;
+  if (y < 0) lat = -lat;
+  return [lng, lat];
+}
+
+function bd09ToGcj02(lng, lat) {
+  const xPi = (Math.PI * 3000.0) / 180.0;
+  const b = lng - 0.0065;
+  const c = lat - 0.006;
+  const z = Math.sqrt(b * b + c * c) - Math.sin(c * xPi) * 0.00002;
+  const th = Math.atan2(c, b) - Math.cos(b * xPi) * 0.000003;
+  return [z * Math.cos(th), z * Math.sin(th)];
+}
+
+function jsonpGet(url, timeoutMs) {
+  return new Promise((resolve) => {
+    const cb = "__jwbd" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const script = document.createElement("script");
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      try { delete window[cb]; } catch (e) { window[cb] = null; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs || 8000);
+    window[cb] = (data) => finish(data);
+    script.onerror = () => finish(null);
+    script.src = url + "&callback=" + cb;
+    document.head.appendChild(script);
+  });
+}
+
+function baiduSearch(text) {
+  const url =
+    "https://map.baidu.com/?qt=s&wd=" + encodeURIComponent(text) +
+    "&ie=utf-8&oue=1&fromproduct=jsapi&res=api&rn=5";
+  return jsonpGet(url, 8000)
+    .then((j) => {
+      const list = (j && j.content) || [];
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const geo = c && c.geo;
+        if (typeof geo !== "string" || geo.indexOf("|") < 0) continue;
+        const seg = String(geo.split("|")[1] || "").split(";")[0].split(",");
+        const mx = Number(seg[0]);
+        const my = Number(seg[1]);
+        if (!mx || !my || !isNum(mx) || !isNum(my)) continue;
+        const bd = bdMcToBd09(mx, my);
+        const g = bd09ToGcj02(bd[0], bd[1]);
+        const w = gcj02ToWgs84(g[0], g[1]);
+        if (!w || !isNum(w[0]) || !isNum(w[1])) continue;
+        return { lng: w[0], lat: w[1], label: c.name || "", addr: c.addr || c.poi_address || "" };
+      }
+      return null;
+    })
+    .catch(() => null);
+}
+
+function nominatimSearch(text) {
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=cn&accept-language=zh-CN&q=" +
+    encodeURIComponent(text);
+  return fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined
+  })
+    .then((r) => (r.ok ? r.json() : []))
+    .then((arr) => {
+      const hit = Array.isArray(arr) ? arr[0] : null;
+      if (!hit || !isNum(hit.lon) || !isNum(hit.lat)) return null;
+      return { lng: Number(hit.lon), lat: Number(hit.lat), label: hit.display_name || "" };
+    })
+    .catch(() => null);
+}
+
+/* 查坐标：百度 → 高德（有 key 才走）→ OSM，全都失败才返回 null */
+async function geocode(text) {
+  const q = String(text || "").trim();
+  if (!q) return null;
+  const hitCache = geoCacheGet(q);
+  if (hitCache && isNum(hitCache.lng) && isNum(hitCache.lat)) {
+    const p = [hitCache.lng, hitCache.lat];
+    p.label = hitCache.label || "";
+    return p;
+  }
+  let hit = await baiduSearch(q);
+  if (!hit) hit = await amapSearch(q);
+  if (!hit) hit = await nominatimSearch(q);
+  if (!hit) return null;
+  const p = [hit.lng, hit.lat];
+  p.label = hit.label || "";
+  p.addr = hit.addr || "";
+  geoCacheSet(q, { lng: hit.lng, lat: hit.lat, label: p.label });
+  return p;
 }
 
 /* 反向查地名：给个坐标，返回附近的地名（像微信发定位那样） */
@@ -3497,9 +3582,10 @@ function bindAdd() {
     geoLastQ = q;
     toast("正在按「" + q + "」找位置…", 1800);
     geocode(q).then((p) => {
-      if (!p) return toast("这个地名没查到坐标，可以直接发布，导航会按地名搜");
+      if (!p) return toast("这个地名没查到坐标，点一下地图上你要站的位置就行");
       setCoord(p[0], p[1]);
-      toast("已自动定位到「" + q + "」", 1600);
+      toast("已定位到「" + (p.label || q) + "」", 1800);
+      if (add.pickMap) add.pickMap.setView(toDisplay(p[0], p[1]), 15);
     });
   }
 
@@ -3559,9 +3645,12 @@ function bindAdd() {
 
     /* 坐标不用用户填：没填就按地名自动查一次 */
     if (!isNum($("#fLng").value) || !isNum($("#fLat").value)) {
-      toast("正在按地名找坐标…", 2000);
+      toast("正在按地名找坐标…", 3000);
       const p = await geocode(address);
-      if (p) setCoord(p[0], p[1]);
+      if (p) {
+        setCoord(p[0], p[1]);
+        toast("已定位到「" + (p.label || address) + "」", 1800);
+      }
     }
 
     const lngRaw = $("#fLng").value.trim();
