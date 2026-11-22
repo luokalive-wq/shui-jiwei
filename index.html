@@ -1410,6 +1410,28 @@ label.upload-box {
   z-index: 3;
 }
 
+/* ---------- 图片渐显：别一张张“跳”出来 ---------- */
+.card-media,
+.rank-thumb {
+  background-color: #eceff3;
+}
+
+.cover-img {
+  opacity: 0;
+  animation: imgShow .28s ease .2s forwards;
+}
+
+.cover-img.img-ready {
+  opacity: 1;
+  animation: none;
+}
+
+@keyframes imgShow {
+  to {
+    opacity: 1;
+  }
+}
+
 .view { display: none; }
 .view.active { display: block; }
 </style>
@@ -2215,6 +2237,21 @@ function spotLink(id) {
   return "#/spot/" + encodeURIComponent(id);
 }
 
+/* 列表用的小图：img/xxx.jpg -> img/t/xxx.jpg；没生成过就回落原图 */
+function thumbUrl(u) {
+  const s = String(u || "");
+  const i = s.indexOf("/img/");
+  if (i < 0) return s;
+  const rest = s.slice(i + 5);
+  if (!rest || rest.indexOf("/") >= 0) return s;
+  return s.slice(0, i) + "/img/t/" + rest;
+}
+
+/* 图片加载完淡入，避免一张张“跳出来” */
+const IMG_ATTRS =
+  ' decoding="async" onload="this.classList.add(\'img-ready\')"' +
+  ' onerror="if(this.dataset.full){this.src=this.dataset.full;this.dataset.full=\'\';}else{this.classList.add(\'img-ready\')}"';
+
 /* 地名 → 坐标：用户一个都不用填。高德 key 有就用高德，没有就走百度那条（免 key） */
 const AMAP_KEY = "";
 
@@ -2406,7 +2443,7 @@ function cardHtml(spot) {
   const img = spot.images && spot.images.length ? spot.images[0] : null;
   const media = img
     ? '<div class="card-media">' +
-        '<img class="cover-img" src="' + esc(img) + '" alt="' + esc(spot.title) + '" loading="lazy">' +
+        '<img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-full="' + esc(img) + '" alt="' + esc(spot.title) + '" loading="lazy"' + IMG_ATTRS + ">" +
         '<span class="heat-badge">♥ ' + heatOf(spot) + "</span>" +
       "</div>"
     : '<div class="card-media" style="' + coverStyle(spot) + '">' +
@@ -2814,7 +2851,7 @@ function filteredSpots() {
 function rankRowHtml(spot, i) {
   const img = spot.images && spot.images.length ? spot.images[0] : null;
   const thumb = img
-    ? '<div class="rank-thumb"><img class="cover-img" src="' + esc(img) + '" alt="" loading="lazy"></div>'
+    ? '<div class="rank-thumb"><img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-full="' + esc(img) + '" alt="" loading="lazy"' + IMG_ATTRS + "></div>"
     : '<div class="rank-thumb" style="' + coverStyle(spot) + '"></div>';
   return (
     '<a class="rank-row top-' + (i + 1) + '" href="' + spotLink(spot.id) + '">' +
@@ -2954,16 +2991,22 @@ function drawDetailMap(spot) {
 function detailPaint() {
   const img = $("#carImg");
   if (!img) return;
-  img.style.opacity = "0";
-  const next = detail.imgs[(detail.idx + 1) % detail.imgs.length];
-  if (next) {
-    const pre = new Image();
-    pre.src = next;
-  }
-  setTimeout(() => {
-    img.src = detail.imgs[detail.idx];
-    img.style.opacity = "1";
-  }, 60);
+  const target = detail.imgs[detail.idx];
+  if (!target) return;
+  /* 双缓冲：新图在内存里解码好再换上去，中间不闪白 */
+  const pre = new Image();
+  pre.onload = () => {
+    if (detail.imgs[detail.idx] !== target) return;
+    img.src = target;
+    img.classList.add("img-ready");
+    const nx = detail.imgs[(detail.idx + 1) % detail.imgs.length];
+    if (nx && nx !== target) {
+      const p2 = new Image();
+      p2.src = nx;
+    }
+  };
+  pre.onerror = () => img.classList.add("img-ready");
+  pre.src = target;
   $$(".carousel-dots i").forEach((d, i) => d.classList.toggle("on", i === detail.idx));
   const count = $("#carCount");
   if (count) count.textContent = detail.idx + 1 + " / " + detail.imgs.length;
@@ -3249,7 +3292,7 @@ function openDetail(id) {
       "</span><em>" + esc(spot.title) + " · 暂无实景图</em></div></div>";
   } else {
     carousel.innerHTML =
-      '<img id="carImg" class="carousel-img" alt="' + esc(spot.title) + '" src="' + detail.imgs[0] + '" decoding="async">' +
+      '<img id="carImg" class="carousel-img img-ready" alt="' + esc(spot.title) + '" src="' + esc(thumbUrl(detail.imgs[0])) + '" decoding="async">' +
       (detail.imgs.length > 1
         ? '<button type="button" class="carousel-arrow prev" id="carPrev" aria-label="上一张">‹</button>' +
           '<button type="button" class="carousel-arrow next" id="carNext" aria-label="下一张">›</button>' +
@@ -3269,6 +3312,15 @@ function openDetail(id) {
         detailPaint();
       });
     }
+  }
+
+  /* 先把小图顶上，原图和后面几张在后台自己加载好，切图不卡 */
+  if (detail.imgs.length) {
+    detail.imgs.forEach((u) => {
+      const p = new Image();
+      p.src = u;
+    });
+    detailPaint();
   }
 
   /* 位置地图 */
@@ -3394,6 +3446,30 @@ function compressImage(file) {
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+/* 从已压好的图再出一张小图，给列表用 */
+function dataUrlToThumb(dataUrl, maxSide, quality) {
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const scale = Math.min(1, maxSide / Math.max(im.width, im.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(im.width * scale);
+        c.height = Math.round(im.height * scale);
+        const x = c.getContext("2d");
+        x.fillStyle = "#ffffff";
+        x.fillRect(0, 0, c.width, c.height);
+        x.drawImage(im, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", quality || 0.62));
+      } catch (e) {
+        resolve("");
+      }
+    };
+    im.onerror = () => resolve("");
+    im.src = dataUrl;
   });
 }
 
@@ -3970,6 +4046,11 @@ async function cloudSaveSpot(spot) {
       if (input.length > 1) toast("正在上传图片 " + (i + 1) + "/" + input.length + "…", 1600);
       await ghPutImage(CLOUD.imgDir + "/" + name, input[i], "img " + name);
       urls.push(CLOUD.site + "/" + CLOUD.imgDir + "/" + name);
+      /* 顺手传一张小图，列表就不用等原图了 */
+      try {
+        const th = await dataUrlToThumb(input[i], 420, 0.62);
+        if (th) await ghPutImage(CLOUD.imgDir + "/t/" + name, th, "thumb " + name);
+      } catch (e) {}
     } catch (e) {
       failed++;
     }
