@@ -1,6 +1,32 @@
 {
- "updatedAt": "2026-11-22T08:10:49.258Z",
+ "updatedAt": "2026-11-22T08:11:26.549Z",
  "spots": [
+  {
+   "id": "smwrk5kq7lpo",
+   "title": "从化的稻田",
+   "province": "",
+   "city": "",
+   "address": "从化区风云岭森林公园",
+   "lng": 113.555707,
+   "lat": 23.539807,
+   "tags": [
+    "稻田"
+   ],
+   "desc": "从化的艾米稻香小镇从化区风云岭森林公园",
+   "tips": "",
+   "bestTime": "",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwrk5kq7lpo-0-1795335084084.jpg"
+   ],
+   "heat": 0,
+   "views": 0,
+   "likes": 0,
+   "author": "D",
+   "authorId": "devmwrjce6ugvz",
+   "createdAt": "2026-11-22T08:11:24.080Z",
+   "mine": true
+  },
   {
    "id": "smwqmuceq6m8",
    "title": "蓝湖",
