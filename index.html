@@ -2243,10 +2243,36 @@ function thumbUrl(u) {
   return s.slice(0, i) + "/img/t/" + rest;
 }
 
+/* 仓库直连地址：Pages 刚发布还没构建好时，这儿的图已经是新的了 */
+function rawUrl(u) {
+  const s = String(u || "");
+  if (!s) return "";
+  return s.replace(
+    "https://luokalive-wq.github.io/shui-jiwei/",
+    "https://raw.githubusercontent.com/luokalive-wq/shui-jiwei/main/"
+  );
+}
+
+/* 三级兜底：小图 → 仓库直连 → 原图，哪级能出就用哪级 */
+window.__imgErr = function (el) {
+  const st = Number(el.getAttribute("data-stage") || 0);
+  el.setAttribute("data-stage", String(st + 1));
+  const raw = el.getAttribute("data-raw");
+  const full = el.getAttribute("data-full");
+  if (st === 0 && raw) {
+    el.src = raw;
+    return;
+  }
+  if (st === 1 && full) {
+    el.src = full;
+    return;
+  }
+  el.classList.add("img-ready");
+};
+
 /* 图片加载完淡入，避免一张张“跳出来” */
 const IMG_ATTRS =
-  ' decoding="async" onload="this.classList.add(\'img-ready\')"' +
-  ' onerror="if(this.dataset.full){this.src=this.dataset.full;this.dataset.full=\'\';}else{this.classList.add(\'img-ready\')}"';
+  ' decoding="async" onload="this.classList.add(\'img-ready\')" onerror="__imgErr(this)"';
 
 /* 地名 → 坐标：用户一个都不用填。高德 key 有就用高德，没有就走百度那条（免 key） */
 const AMAP_KEY = "";
@@ -2439,7 +2465,7 @@ function cardHtml(spot) {
   const img = spot.images && spot.images.length ? spot.images[0] : null;
   const media = img
     ? '<div class="card-media">' +
-        '<img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-full="' + esc(img) + '" alt="' + esc(spot.title) + '" loading="lazy"' + IMG_ATTRS + ">" +
+        '<img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-raw="' + esc(rawUrl(thumbUrl(img))) + '" data-full="' + esc(img) + '" alt="' + esc(spot.title) + '" loading="lazy"' + IMG_ATTRS + ">" +
         '<span class="heat-badge">♥ ' + heatOf(spot) + "</span>" +
       "</div>"
     : '<div class="card-media" style="' + coverStyle(spot) + '">' +
@@ -2847,7 +2873,7 @@ function filteredSpots() {
 function rankRowHtml(spot, i) {
   const img = spot.images && spot.images.length ? spot.images[0] : null;
   const thumb = img
-    ? '<div class="rank-thumb"><img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-full="' + esc(img) + '" alt="" loading="lazy"' + IMG_ATTRS + "></div>"
+    ? '<div class="rank-thumb"><img class="cover-img" src="' + esc(thumbUrl(img)) + '" data-raw="' + esc(rawUrl(thumbUrl(img))) + '" data-full="' + esc(img) + '" alt="" loading="lazy"' + IMG_ATTRS + "></div>"
     : '<div class="rank-thumb" style="' + coverStyle(spot) + '"></div>';
   return (
     '<a class="rank-row top-' + (i + 1) + '" href="' + spotLink(spot.id) + '">' +
