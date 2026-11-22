@@ -1493,26 +1493,8 @@ label.upload-box {
     </header>
 
     <main class="container">
-      <div id="mineLogin" class="form-card" style="display:none">
-        <div class="field">
-          <label for="fEmail">邮箱<span class="hint">就是你的账号，也会作为发布人显示</span></label>
-          <input id="fEmail" type="email" placeholder="例：12345678@qq.com" autocomplete="username">
-        </div>
-        <div class="field">
-          <label for="fPw">密码<span class="hint">至少 6 位；新邮箱第一次就是注册</span></label>
-          <input id="fPw" type="password" placeholder="至少 6 位" autocomplete="current-password">
-        </div>
-        <div class="form-actions">
-          <button id="doLogin" class="btn btn-primary" type="button">登录 / 注册</button>
-        </div>
-        <p class="form-tip" id="loginTip">发机位需要先登录。第一次用这个邮箱会自动创建账号。</p>
-      </div>
-
-      <div id="mineLogged" style="display:none">
-        <p class="form-tip">
-          当前身份：<strong id="mineName"></strong>
-          <button id="logoutBtn" class="link-btn" type="button">退出登录</button>
-        </p>
+      <div id="mineLogged">
+        <p class="form-tip">这台设备发布的机位（不用登录，发完就能看）。</p>
         <div id="mineList" class="spot-list"></div>
       </div>
     </main>
@@ -1666,8 +1648,8 @@ label.upload-box {
         </div>
 
         <div class="field" id="authorField">
-          <label>发布人<span class="hint">取自登录邮箱</span></label>
-          <p class="form-tip" id="authorLine" style="margin:0">还没登录，<a href="#/mine">点这里用邮箱登录</a></p>
+          <label for="fNick">发布人<span class="hint">不用登录，留空就是「一水」</span></label>
+          <input id="fNick" type="text" placeholder="你的名字或网名" maxlength="20">
         </div>
 
         <div class="field">
@@ -3291,13 +3273,8 @@ function compressImage(file) {
 function bindAdd() {
   refreshAddSelects();
 
-  const me0 = getUser();
-  const line = $("#authorLine");
-  if (line) {
-    line.innerHTML = me0
-      ? "已登录：" + esc(me0.email) + (me0.creator ? "（创作者）" : "")
-      : '还没登录，<a href="#/mine">点这里用邮箱登录</a>';
-  }
+  const nickInput = $("#fNick");
+  if (nickInput) nickInput.value = LS.get("jiweiji.nick.v1") || "";
 
   /* 快捷标签 */
   $("#quickTags").innerHTML = COMMON_TAGS.map(
@@ -3503,15 +3480,14 @@ function bindAdd() {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
 
-    const me0 = getUser();
-    if (!me0) {
-      toast("发之前先登录一下（邮箱验证码登录）");
-      location.hash = "#/mine";
-      return;
-    }
+    /* 不登录也能发：身份用这台设备的昵称 */
+    const me0 = getUser() || { name: myNick(), uid: deviceUid(), email: "", creator: false };
+    const nickInput = $("#fNick");
+    const typedNick = nickInput ? nickInput.value.trim() : "";
+    if (typedNick) setNick(typedNick);
 
     const title = $("#fTitle").value.trim();
-    const authorName = me0.name;
+    const authorName = typedNick || me0.name;
     const province = "";
     const city = "";
     const address = $("#fAddress").value.trim();
@@ -3634,13 +3610,8 @@ function ensureAdd() {
   } else {
     refreshAddSelects();
     syncQuickTags();
-    const me0 = getUser();
-    const line = $("#authorLine");
-    if (line) {
-      line.innerHTML = me0
-        ? "已登录：" + esc(me0.email) + (me0.creator ? "（创作者）" : "")
-        : '还没登录，<a href="#/mine">点这里用邮箱登录</a>';
-    }
+    const nickInput = $("#fNick");
+    if (nickInput) nickInput.value = LS.get("jiweiji.nick.v1") || "";
   }
   if (add.pickMap) setTimeout(() => add.pickMap.invalidateSize(), 120);
 }
@@ -3979,40 +3950,51 @@ function cloudHintText() {
 
 const mine = { inited: false, timer: null };
 
-/* 右下角入口的头像：登录后显示邮箱首字母 */
+/* 这台设备的身份（不用登录）：本地昵称 + 本机编号 */
+function deviceUid() {
+  let u = LS.get("jiweiji.dev.v1");
+  if (!u || typeof u !== "string") {
+    u = "dev" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    LS.set("jiweiji.dev.v1", u);
+  }
+  return u;
+}
+
+function myNick() {
+  const s = getSession();
+  if (s && s.name) return s.name;
+  return LS.get("jiweiji.nick.v1") || "一水";
+}
+
+function setNick(n) {
+  const v = String(n || "").trim().slice(0, 20);
+  if (v) LS.set("jiweiji.nick.v1", v);
+}
+
 function paintDock() {
   const face = $("#dockFace");
   if (!face) return;
-  const me = getUser();
-  face.textContent = me ? (String(me.email).charAt(0) || "我").toUpperCase() : "我";
+  face.textContent = "我";
 }
 
 function renderMine() {
-  const me = getUser();
-  const loginBox = $("#mineLogin");
-  const loggedBox = $("#mineLogged");
   paintDock();
-  if (!me) {
-    loginBox.style.display = "block";
-    loggedBox.style.display = "none";
-    return;
-  }
-  loginBox.style.display = "none";
-  loggedBox.style.display = "block";
-  $("#mineName").textContent = me.email + (me.creator ? " · 创作者" : "");
-
-  const all = getSpots();
-  const list = all.filter(
-    (s) => (s.authorId && s.authorId === me.uid) || (!s.authorId && s.author === me.name)
+  const box = $("#mineLogged");
+  if (box) box.style.display = "block";
+  const uid = deviceUid();
+  const nick = myNick();
+  const list = getSpots().filter(
+    (s) => (s.authorId && s.authorId === uid) || (!s.authorId && s.author === nick)
   );
-  $("#mineList").innerHTML = list.length
+  const holder = $("#mineList");
+  if (!holder) return;
+  holder.innerHTML = list.length
     ? list.map(cardHtml).join("")
-    : emptyHtml("还没有发布过机位", "点右上角「发布机位」，传张图、写上地点就能发。");
+    : emptyHtml("这台设备还没发过机位", "点右上角「发布机位」，传张图、写上地点、点一下定位就能发，不用登录。");
 }
 
 function refreshMineFromCloud() {
-  const me = getUser();
-  if (!me || !cloudOn()) return;
+  if (!cloudOn()) return;
   cloudFetchSpots()
     .then((remote) => {
       const map = new Map();
@@ -4024,46 +4006,6 @@ function refreshMineFromCloud() {
 }
 
 function ensureMine() {
-  if (!mine.inited) {
-    mine.inited = true;
-
-    $("#doLogin").addEventListener("click", async () => {
-      const email = $("#fEmail").value.trim().toLowerCase();
-      const pw = $("#fPw").value;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("邮箱格式不对");
-      if (!pw || pw.length < 6) return toast("密码至少 6 位");
-      $("#doLogin").disabled = true;
-      $("#loginTip").textContent = "正在登录…";
-      try {
-        let r = null;
-        try {
-          r = await accountLogin(email, pw);
-        } catch (e) {
-          r = await accountRegister(email, pw);
-        }
-        const s = sessionFromAccount(r);
-        saveSession(s);
-        $("#loginTip").textContent = "登录成功";
-        renderMine();
-        refreshMineFromCloud();
-        toast(s.creator ? "登录成功，你是创作者" : "登录成功");
-        if (!location.hash.includes("/mine")) location.hash = "#/mine";
-      } catch (e) {
-        $("#loginTip").textContent = e.message || "登录失败";
-        toast(e.message || "登录失败，检查邮箱和密码");
-      } finally {
-        $("#doLogin").disabled = false;
-      }
-    });
-
-    $("#logoutBtn").addEventListener("click", () => {
-      clearUser();
-      $("#fEmail").value = "";
-      $("#fPw").value = "";
-      renderMine();
-      toast("已退出登录");
-    });
-  }
   renderMine();
   refreshMineFromCloud();
 }
