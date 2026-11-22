@@ -1429,16 +1429,29 @@ label.upload-box {
 }
 
 /* ---------- 地址写法教程 ---------- */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field-label-row label {
+  margin: 0;
+}
+
 .guide-link {
-  float: right;
-  margin-top: -26px;
-  padding: 3px 10px;
+  flex: none;
+  white-space: nowrap;
+  padding: 4px 10px;
   border: 1px solid #cfe0ff;
   border-radius: 999px;
   background: #f2f7ff;
   color: #0a66d6;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
+  line-height: 1.4;
   cursor: pointer;
 }
 
@@ -1518,6 +1531,86 @@ label.upload-box {
   color: #0a55c0;
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* ---------- 批量导入 ---------- */
+.bulk-card {
+  margin: 16px 0 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.bulk-head strong {
+  display: block;
+  font-size: 15px;
+  color: #16202c;
+}
+
+.bulk-head span {
+  display: block;
+  margin-top: 5px;
+  color: #6b7a8f;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.bulk-card textarea {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  background: #fbfcfe;
+}
+
+.bulk-list {
+  margin-top: 6px;
+}
+
+.bulk-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed #eef1f5;
+  font-size: 12.5px;
+}
+
+.bulk-tick {
+  flex: none;
+  color: #0a9a5b;
+  font-weight: 700;
+}
+
+.bulk-row.bad .bulk-tick {
+  color: #d94848;
+}
+
+.bulk-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #16202c;
+}
+
+.bulk-sub {
+  margin-left: auto;
+  color: #7c8a9c;
+  font-size: 11.5px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .view { display: none; }
@@ -1691,6 +1784,7 @@ label.upload-box {
         <div class="detail-actions">
           <button id="likeBtn" class="btn btn-primary" type="button">♥ 点赞 0</button>
           <button id="collectBtn" class="btn btn-secondary" type="button">♡ 收藏机位</button>
+          <button id="importBtn" class="btn btn-secondary" type="button">↓ 导入到我的机位</button>
           <button id="copyAddrBtn" class="btn btn-ghost" type="button">复制导航地址</button>
           <button id="copyBaiduLinkBtn" class="btn btn-ghost" type="button">复制百度地图链接</button>
           <button id="copyLinkBtn" class="btn btn-ghost" type="button">复制页面链接</button>
@@ -1751,9 +1845,22 @@ label.upload-box {
     </header>
 
     <main class="container">
+      <div class="bulk-card">
+        <div class="bulk-head">
+          <strong>批量导入点位</strong>
+          <span>高德群组、收藏夹里的点位名，一行复制一个贴进来，自动查坐标、批量建条目</span>
+        </div>
+        <textarea id="bulkText" rows="4" placeholder="艾米稻香小镇 从化·风云岭森林公园东北角&#10;低涌稻田打卡点&#10;番禺紫泥堂废墟"></textarea>
+        <div class="mini-tools">
+          <button type="button" class="chip-btn on" id="bulkRun">开始识别</button>
+          <button type="button" class="chip-btn" id="bulkSave" disabled>全部导入（0）</button>
+        </div>
+        <div class="bulk-list" id="bulkList"></div>
+      </div>
+
       <form id="spotForm" class="form-card" novalidate>
         <div class="field">
-          <label for="fTitle">机位名称<span class="hint">必填；名称、地点、精准坐标、至少 1 张图都要有</span></label>
+          <label for="fTitle">机位名称<span class="hint">必填；名称、地点、1 张图，坐标会自动查</span></label>
           <input id="fTitle" type="text" placeholder="给这个机位起个名字，例：低涌稻田" maxlength="30" required>
         </div>
 
@@ -1763,8 +1870,10 @@ label.upload-box {
         </div>
 
         <div class="field">
-          <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
-          <button type="button" class="guide-link" id="btnAddrGuide">地址怎么填？看教程 ›</button>
+          <div class="field-label-row">
+            <label for="fAddress">地点 / 地址<span class="hint">必填，写成地图上能搜到的地名</span></label>
+            <button type="button" class="guide-link" id="btnAddrGuide">地址怎么填 ›</button>
+          </div>
           <input id="fAddress" type="text" placeholder="例：广州塔西门 / 西湖断桥 / 低涌稻田" maxlength="60" required>
           <div class="mini-tools">
             <button id="btnGeo" class="chip-btn on" type="button">📍 用我当前位置</button>
@@ -3227,6 +3336,35 @@ function bindDetail() {
     paintFav();
   });
 
+  $("#importBtn").addEventListener("click", () => {
+    const cur = detail.spot;
+    if (!cur) return;
+    const spots = getSpots();
+    const dup = spots.find((x) => x.imported && String(x.fromId) === String(cur.id));
+    if (dup) {
+      toast("这个机位已经在你的列表里了");
+      location.hash = "#/mine";
+      return;
+    }
+    const copy = Object.assign({}, cur, {
+      id: "im" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      fromId: String(cur.id),
+      imported: true,
+      mine: true,
+      pending: false,
+      authorId: deviceUid(),
+      author: myNick() || cur.author || "",
+      heat: 0,
+      views: 0,
+      likes: 0,
+      createdAt: new Date().toISOString()
+    });
+    spots.unshift(copy);
+    if (!saveSpots(spots)) return;
+    toast("已导入到你的机位，可以在「我的」里看到");
+    location.hash = "#/mine";
+  });
+
   $("#copyAddrBtn").addEventListener("click", async () => {
     const s = detail.spot;
     if (!s) return;
@@ -3630,6 +3768,117 @@ function bindAdd() {
 
   const nickInput = $("#fNick");
   if (nickInput) nickInput.value = LS.get("jiweiji.nick.v1") || "";
+
+  /* 批量导入：群组/收藏夹里的点位名，一行一个，自动查坐标 */
+  const bulkText = $("#bulkText");
+  const bulkRun = $("#bulkRun");
+  const bulkSaveBtn = $("#bulkSave");
+  const bulkListEl = $("#bulkList");
+  const bulk = { items: [], busy: false };
+
+  function paintBulk() {
+    if (!bulkListEl) return;
+    const okCount = bulk.items.filter((x) => x.p && isNum(x.p[0])).length;
+    bulkListEl.innerHTML = bulk.items.length
+      ? bulk.items
+          .map((it) => {
+            const ok = it.p && isNum(it.p[0]);
+            return (
+              '<div class="bulk-row' + (ok ? "" : " bad") + '">' +
+                '<span class="bulk-tick">' + (ok ? "✓" : "×") + "</span>" +
+                '<span class="bulk-name">' + esc(it.title || it.q) + "</span>" +
+                '<span class="bulk-sub">' +
+                  (ok
+                    ? esc((it.p.label || "") + " · " + it.p[0].toFixed(4) + ", " + it.p[1].toFixed(4))
+                    : "没查到坐标") +
+                "</span>" +
+              "</div>"
+            );
+          })
+          .join("")
+      : "";
+    if (bulkSaveBtn) {
+      bulkSaveBtn.disabled = okCount === 0 || bulk.busy;
+      bulkSaveBtn.textContent = "全部导入（" + okCount + "）";
+    }
+  }
+
+  if (bulkRun) {
+    bulkRun.addEventListener("click", async () => {
+      if (bulk.busy) return;
+      const lines = String(bulkText.value || "")
+        .split(/\n|、|，|；|;/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 40);
+      if (!lines.length) return toast("先把点位名一行一个贴进来");
+      bulk.items = [];
+      bulk.busy = true;
+      paintBulk();
+      for (let i = 0; i < lines.length; i++) {
+        bulkRun.textContent = "识别中 " + (i + 1) + "/" + lines.length;
+        const p = await geocode(lines[i]);
+        bulk.items.push({ q: lines[i], title: (p && p.label) || lines[i], p: p });
+        paintBulk();
+      }
+      bulk.busy = false;
+      bulkRun.textContent = "重新识别";
+      paintBulk();
+      const okCount = bulk.items.filter((x) => x.p && isNum(x.p[0])).length;
+      toast("识别完成：" + okCount + " / " + lines.length + " 个有坐标");
+    });
+  }
+
+  if (bulkSaveBtn) {
+    bulkSaveBtn.addEventListener("click", async () => {
+      if (bulk.busy) return;
+      const ready = bulk.items.filter((x) => x.p && isNum(x.p[0]));
+      if (!ready.length) return toast("先识别一次，有坐标的才能导入");
+      bulk.busy = true;
+      bulkSaveBtn.textContent = "正在导入…";
+      const me = getUser() || { name: myNick(), uid: deviceUid(), email: "", creator: false };
+      let done = 0;
+      for (let i = 0; i < ready.length; i++) {
+        const it = ready[i];
+        bulkSaveBtn.textContent = "正在导入 " + (i + 1) + "/" + ready.length;
+        const spot = {
+          id: "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          title: String(it.title || it.q).slice(0, 30),
+          author: me.name,
+          authorId: me.uid,
+          address: it.q,
+          lng: it.p[0],
+          lat: it.p[1],
+          tags: [],
+          desc: "",
+          images: [],
+          heat: 0,
+          views: 0,
+          likes: 0,
+          pending: true,
+          mine: true,
+          createdAt: new Date().toISOString()
+        };
+        const list = getSpots();
+        list.unshift(spot);
+        saveSpots(list);
+        if (cloudOn()) {
+          try {
+            await cloudSaveSpot(spot);
+            spot.pending = false;
+            saveSpots(getSpots().map((x) => (String(x.id) === String(spot.id) ? spot : x)));
+          } catch (e) {}
+        }
+        done++;
+      }
+      bulk.busy = false;
+      bulk.items = [];
+      if (bulkText) bulkText.value = "";
+      paintBulk();
+      toast("已导入 " + done + " 个点位，可以一张张补图");
+      location.hash = "#/";
+    });
+  }
 
   /* 快捷标签 */
   $("#quickTags").innerHTML = COMMON_TAGS.map(
@@ -4288,6 +4537,11 @@ async function cloudSync() {
     local.forEach((s) => {
       const id = String(s.id);
       if (map.has(id)) return;
+      /* 从别人分享里导进来的，只存在本机，长期留着 */
+      if (s.imported) {
+        map.set(id, s);
+        return;
+      }
       const t = Date.parse(s.createdAt || "");
       /* 只有这台设备刚发布、云端还没写成功的（带 mine，24 小时内）才留在页面上 */
       if (s.mine && !isNaN(t) && now - t < 24 * 60 * 60 * 1000) {
