@@ -1,6 +1,30 @@
 {
- "updatedAt": "2026-11-23T03:25:56.675Z",
+ "updatedAt": "2026-11-23T06:22:01.212Z",
  "spots": [
+  {
+   "id": "smwsvobcpvt0",
+   "title": "旋转楼梯",
+   "province": "",
+   "city": "",
+   "address": "广州中苏友好大厦旧址",
+   "lng": 113.253183,
+   "lat": 23.145175,
+   "tags": [],
+   "desc": "大厦旧址外面一个梯子，不用进去",
+   "tips": "",
+   "bestTime": "",
+   "panorama": "",
+   "images": [
+    "https://luokalive-wq.github.io/shui-jiwei/img/smwsvobcpvt0-0-1795414916689.jpg"
+   ],
+   "heat": 0,
+   "views": 1,
+   "likes": 0,
+   "author": "D",
+   "authorId": "devmwrjce6ugvz",
+   "createdAt": "2026-11-23T06:21:40.345Z",
+   "mine": true
+  },
   {
    "id": "smwrm2jatpw9",
    "title": "广州塔塔马",
